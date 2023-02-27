@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Autofac;
+using IGeekFan.AspNetCore.Knife4jUI;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -20,12 +22,17 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
+using Quartz;
+using Quartz.Impl;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using VOL.Core.Configuration;
 using VOL.Core.Extensions;
 using VOL.Core.Filters;
 using VOL.Core.Middleware;
 using VOL.Core.ObjectActionValidator;
+using VOL.Core.Quartz;
+using VOL.Core.WorkFlow;
+using VOL.WebApi.Controllers.Hubs;
 
 namespace VOL.WebApi
 {
@@ -113,9 +120,17 @@ namespace VOL.WebApi
             services.AddControllers();
             services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new OpenApiInfo { Title = "VOL.Core后台Api", Version = "v1" });
-                var security = new Dictionary<string, IEnumerable<string>>
-                { { AppSetting.Secret.Issuer, new string[] { } }};
+                //分为2份接口文档
+                c.SwaggerDoc("v1", new OpenApiInfo { Title = "VOL.Core后台Api", Version = "v1", Description = "这是对文档的描述。。" });
+                c.SwaggerDoc("v2", new OpenApiInfo { Title = "VOL.Core对外三方Api", Version = "v2", Description = "xxx接口文档" });  //控制器里使用[ApiExplorerSettings(GroupName = "v2")]              
+                                                                                                                             //启用中文注释功能
+                                                                                                                             // var basePath = PlatformServices.Default.Application.ApplicationBasePath;
+                                                                                                                             //  var xmlPath = Path.Combine(basePath, "VOL.WebApi.xml");
+                                                                                                                             //   c.IncludeXmlComments(xmlPath, true);//显示控制器xml注释内容
+                                                                                                                             //添加过滤器 可自定义添加对控制器的注释描述
+                                                                                                                             //c.DocumentFilter<SwaggerDocTag>();
+
+                var security = new Dictionary<string, IEnumerable<string>> { { AppSetting.Secret.Issuer, new string[] { } } };
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
                 {
                     Description = "JWT授权token前面需要加上字段Bearer与一个空格,如Bearer token",
@@ -140,7 +155,7 @@ namespace VOL.WebApi
                     }
                 });
             })
-             .AddControllers()
+              .AddControllers()
             .ConfigureApiBehaviorOptions(options =>
             {
                 options.SuppressConsumesConstraintForFormFileParameters = true;
@@ -150,11 +165,18 @@ namespace VOL.WebApi
                 options.ClientErrorMapping[404].Link =
                     "https://*/404";
             });
-            //ApiBehaviorOptions
+            services.AddSignalR();
+
+            services.AddHttpClient();
+            Services.AddTransient<HttpResultfulJob>();
+            Services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
+            Services.AddSingleton<Quartz.Spi.IJobFactory, IOCJobFactory>();
         }
         public void ConfigureContainer(ContainerBuilder builder)
         {
             Services.AddModule(builder, Configuration);
+            //初始化流程表，表里面必须有AuditStatus字段，可以参照 演示环境sellorder表
+           // WorkFlowContainer.Instance.Use<表名1>().Use<表名2>();
         }
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -162,6 +184,10 @@ namespace VOL.WebApi
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+            }
+            else
+            {
+               app.UseQuartz(env);
             }
             app.UseMiddleware<ExceptionHandlerMiddleWare>();
             app.UseStaticFiles().UseStaticFiles(new StaticFileOptions
@@ -200,7 +226,7 @@ namespace VOL.WebApi
             {
                 //2个下拉框选项  选择对应的文档
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "VOL.Core后台Api");
-                c.SwaggerEndpoint("/swagger/v2/swagger.json", "测试第三方Api");
+                c.SwaggerEndpoint("/swagger/v2/swagger.json", "Api");
                 c.RoutePrefix = "";
             });
             app.UseRouting();
@@ -211,7 +237,47 @@ namespace VOL.WebApi
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+                //配置SignalR
+                if (AppSetting.UseSignalR)
+                {
+                    string corsUrls = Configuration["CorsUrls"];
+                    endpoints.MapHub<HomePageMessageHub>("/message").RequireCors(t =>
+                    t.WithOrigins(corsUrls.Split(',')).
+                    AllowAnyMethod().
+                    AllowAnyHeader().
+                    AllowCredentials());
+                }
+
             });
+        }
+
+        /// <summary>
+        /// 获取控制器对应的swagger分组值
+        /// </summary>
+        private string GetSwaggerGroupName(Type controller)
+        {
+            var groupName = controller.Name.Replace("Controller", "");
+            var apiSetting = controller.GetCustomAttribute(typeof(ApiExplorerSettingsAttribute));
+            if (apiSetting != null)
+            {
+                groupName = ((ApiExplorerSettingsAttribute)apiSetting).GroupName;
+
+            }
+
+            return groupName;
+        }
+
+        /// <summary>
+        /// 获取所有的控制器
+        /// </summary>
+        private List<Type> GetControllers()
+        {
+            Assembly asm = Assembly.GetExecutingAssembly();
+
+            var contradistinction = asm.GetTypes()
+                .Where(type => typeof(ControllerBase).IsAssignableFrom(type))
+                .OrderBy(x => x.Name).ToList();
+            return contradistinction;
         }
     }
 

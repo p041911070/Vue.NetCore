@@ -14,7 +14,8 @@ let dataType = [
   { "key": "selectList", "value": "select多选" },
   { "key": "date", "value": "date" },
   { "key": "datetime", "value": "datetime" },
-  { "key": "month", "value": "年月日期格式" },
+  { "key": "month", "value": "年月日" },
+  { "key": "rate", "value": "rate评分" },
   { "key": "time", "value": "time" },
   { "key": "checkbox", "value": "checkbox" },
   // 2021.05.16集成iview radio组件
@@ -114,7 +115,7 @@ let data = {
       ],
       [
         { "title": "快捷编辑", "field": "expressField", placeholder: "快捷编辑字段" },
-        { "title": "排序字段", "field": "sortName", "placeholder": "非自增主键需要输入排序字段", colSize: 8 },
+        { "title": "排序字段", "field": "sortName", "placeholder": "多个排序字段逗号隔开(默认降序排序),如：Name,Age", colSize: 8 },
 
         // { "title": "还没想好", "field": "richtitle" }
       ],

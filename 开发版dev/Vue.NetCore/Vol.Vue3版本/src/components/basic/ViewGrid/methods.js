@@ -30,8 +30,10 @@ let methods = {
       return x.value == 'Search';
     });
     //添加高级查询
-
-    if (searchIndex != -1) {
+    let hasOneFormItem =
+      this.searchFormOptions.length == 1 &&
+      this.searchFormOptions[0].length == 1;
+    if (searchIndex != -1 && !hasOneFormItem) {
       this.buttons.splice(searchIndex + 1, 0, {
         icon: this.fiexdSearchForm ? 'el-icon-refresh-left' : 'el-icon-search',
         name: this.fiexdSearchForm ? '重置' : '高级查询',
@@ -45,11 +47,16 @@ let methods = {
         }
       });
     }
+    if (hasOneFormItem) {
+      this.fiexdSearchForm = false;
+    }
     this.maxBtnLength += searchIndex == -1 ? 0 : 1;
-    if (this.buttons.length <= this.maxBtnLength) return this.buttons;
-    let btns = this.buttons.slice(0, this.maxBtnLength);
-    btns[this.maxBtnLength - 1].last = true;
-    return btns;
+    // if (this.buttons.length <= this.maxBtnLength) {
+    //   return this.buttons;
+    // }
+    // let btns = this.buttons.slice(0, this.maxBtnLength);
+    // btns[this.maxBtnLength - 1].last = true;
+    // return btns;
   },
   extendBtn(btns, source) {
     //btns权限按钮，source为扩展按钮
@@ -159,6 +166,11 @@ let methods = {
       //弹出弹框按钮(2020.04.21),没有编辑或新建权限时，也可以通过buttons属性添加自定义弹出框按钮
       this.boxButtons.push(...boxButtons);
       this.detailOptions.buttons.push(detailGridButtons);
+      this.detailOptions.buttons.forEach((button) => {
+        if (!button.hasOwnProperty('hidden')) {
+          button.hidden = false;
+        }
+      });
       //弹出框扩展明细表按钮
       this.extendBtn(this.detailOptions.buttons, this.extend.buttons.detail);
 
@@ -172,19 +184,21 @@ let methods = {
           name: '保 存',
           icon: 'el-icon-check',
           type: 'danger',
+          disabled: false,
           value: 'save',
           onClick() {
             this.save();
           }
-        },
-        {
-          name: '重 置',
-          icon: 'el-icon-refresh-right',
-          type: 'primary',
-          onClick() {
-            this.resetEdit();
-          }
         }
+        // {
+        //   name: '重 置',
+        //   icon: 'el-icon-refresh-right',
+        //   type: 'primary',
+        //   disabled: false,
+        //   onClick() {
+        //     this.resetEdit();
+        //   }
+        // }
       ]
     );
     //从表表格操作按钮
@@ -240,7 +254,11 @@ let methods = {
         }
       ]
     );
-
+    this.detailOptions.buttons.forEach((button) => {
+      if (button.hasOwnProperty('hidden')) {
+        button.hidden = false;
+      }
+    });
     //弹出框扩展按钮
     this.extendBtn(boxButtons, this.extend.buttons.box);
 
@@ -335,14 +353,30 @@ let methods = {
     if (query) {
       param = Object.assign(param, query);
     }
+    if (this.isViewFlow() && this.$route.query.id) {
+      param.wheres.push({
+        name: this.table.key,
+        value: this.$route.query.id
+      });
+    }
     let status = this.searchBefore(param);
     callBack(status);
   },
+
   loadTableAfter(data, callBack, result) {
     //查询后
     //2020.10.30增加查询后返回所有的查询信息
     let status = this.searchAfter(data, result);
     callBack(status);
+    //自动弹出框审批详情
+    if (this.isViewFlow() && data && data.length) {
+      let query = JSON.parse(JSON.stringify(this.$route.query));
+      query.viewflow = 0;
+      this.$router.replace({ path: this.$route.path, query: query });
+      this.$nextTick(() => {
+        this.getWorkFlowSteps(data[0]);
+      });
+    }
   },
   loadDetailTableBefore(param, callBack) {
     //明细查询前
@@ -369,7 +403,8 @@ let methods = {
         return x.field == field;
       });
     }
-    return data.type;
+
+    return (data || {}).type;
   },
   resetSearch() {
     //重置查询对象
@@ -406,6 +441,11 @@ let methods = {
       this.$refs.detail.reset();
     }
     this.resetForm('form', sourceObj);
+    if (this.$refs.form && this.$refs.form.volform) {
+     setTimeout(() => {
+      this.$refs.form.$refs.volform.clearValidate();
+     }, 100);
+    }
   },
   getKeyValueType(formData, isEditForm) {
     try {
@@ -482,7 +522,7 @@ let methods = {
             });
             if (treeDic && treeDic.orginData && treeDic.orginData.length) {
               if (typeof treeDic.orginData[0].id == 'number') {
-                newVal = ~~newVal;
+                newVal = newVal * 1 || 0;
               } else {
                 newVal = newVal + '';
               }
@@ -572,6 +612,10 @@ let methods = {
           return x.path;
         });
         editFormFields[key] = allPath.join(',');
+      } else if (typeof this.editFormFields[key] == 'function') {
+        try {
+          editFormFields[key] = this.editFormFields[key]();
+        } catch (error) { }
       } else {
         //2021.05.30修复下拉框清除数据后后台不能保存的问题
         if (
@@ -613,6 +657,27 @@ let methods = {
     //获取明细数据(前台数据明细未做校验，待完.后台已经校验)
     if (this.hasDetail) {
       formData.detailData = this.$refs.detail.rowData;
+      let _fields = this.detail.columns
+        .filter((c) => {
+          return (
+            c.type == 'selectList' || (c.edit && c.edit.type == 'selectList')
+          );
+        })
+        .map((c) => {
+          return c.field;
+        });
+      //2022.06.20增加保存时对明细表下拉框多选的判断
+      if (_fields.length) {
+        formData.detailData = JSON.parse(JSON.stringify(formData.detailData));
+        formData.detailData.forEach((row) => {
+          for (let index = 0; index < _fields.length; index++) {
+            const _field = _fields[index];
+            if (Array.isArray(row[_field])) {
+              row[_field] = row[_field].join(',');
+            }
+          }
+        });
+      }
     }
     if (this.detailOptions.delKeys.length > 0) {
       formData.delKeys = this.detailOptions.delKeys;
@@ -651,7 +716,7 @@ let methods = {
         if (!this.updateAfter(x)) return;
       }
       if (!x.status) return this.$error(x.message);
-      this.$success(x.message);
+      this.$success(x.message || '操作成功');
       //如果保存成功后需要关闭编辑框，直接返回不处理后面
       if (this.boxOptions.saveClose) {
         this.boxModel = false;
@@ -767,6 +832,7 @@ let methods = {
     this.boxModel = true;
   },
   async linkData(row, column) {
+    this.boxOptions.title = this.table.cnName + '(编辑)';
     //点击table单元格快捷链接显示编辑数据
     this.currentAction = this.const.EDIT;
     this.currentRow = row;
@@ -806,6 +872,7 @@ let methods = {
     this.resetEditForm(obj);
   },
   async add() {
+    this.boxOptions.title = this.table.cnName + '(新建)';
     //新建
     this.currentAction = this.const.ADD;
     this.currentRow = {};
@@ -820,6 +887,7 @@ let methods = {
     // this.modelOpenAfter();
   },
   async edit(rows) {
+    this.boxOptions.title = '编辑';
     //编辑
     this.currentAction = this.const.EDIT;
     if (rows) {
@@ -957,7 +1025,8 @@ let methods = {
       param.wheres = JSON.stringify(param.wheres);
     }
     let $http = this.http;
-    let fileName = this.getFileName(isDetail);
+    //2022.09.26增加自定义导出文件名
+    let fileName = this.downloadFileName || this.getFileName(isDetail);
     //2021.01.08优化导出功能
     $http
       .post(url, param, '正在导出数据....', { responseType: 'blob' })
@@ -1014,17 +1083,13 @@ let methods = {
     this.auditParam.model = true;
   },
   saveAudit() {
+    if (this.auditParam.status == -1 && this.auditParam.value == -1) {
+      this.$message.error('请选择审批状态');
+      return;
+    }
     //保存审核
-    let rows = this.$refs.table.getSelected();
-    if (this.auditParam.status == -1) return this.$error('请选择审核结果!');
-
-    if (rows.length != this.auditParam.rows)
-      return this.$error('所选数据已发生变化,请重新选择审数据!');
-
-    let keys = rows.map((x) => {
-      return x[this.table.key];
-    });
-    if (!this.auditBefore(keys, rows)) {
+    let keys = [this.editFormFields[this.table.key]];
+    if (!this.auditBefore(keys, this.currentRow)) {
       return;
     }
     let url =
@@ -1032,16 +1097,20 @@ let methods = {
       '?auditReason=' +
       this.auditParam.reason +
       '&auditStatus=' +
-      this.auditParam.status;
+      (this.auditParam.status < 0
+        ? this.auditParam.value
+        : this.auditParam.status);
     this.http.post(url, keys, '审核中....').then((x) => {
-      if (!this.auditAfter(x, rows)) {
+      if (!this.auditAfter(x, keys)) {
         return;
       }
       if (!x.status) return this.$error(x.message);
       this.auditParam.rows = 0;
       this.auditParam.status = -1;
+      this.auditParam.value = -1;
       this.auditParam.reason = '';
       this.auditParam.model = false;
+      this.boxModel = false;
       this.$success(x.message);
       this.refresh();
     });
@@ -1059,6 +1128,10 @@ let methods = {
     formOptions.forEach((item) => {
       item.forEach((d) => {
         if (d.type == 'number') {
+          //2022.08.22优化表单类型为number时的默认值
+          if (formFields[d.field] === '') {
+            formFields[d.field] = undefined;
+          }
           this.numberFields.push(d.field);
         }
         if (
@@ -1120,7 +1193,8 @@ let methods = {
             d,
             this.dicKeys.filter((f) => {
               return f.dicNo == d.dataKey;
-            })[0]
+            })[0],
+            { type: d.type }
           );
         }
       });
@@ -1150,7 +1224,7 @@ let methods = {
       }
       //2020.11.01增加级联处理
       if (dic[0].type == 'cascader') {
-        item.bind = { data: dic[0].orginData, type: 'select',key:key };
+        item.bind = { data: dic[0].orginData, type: 'select', key: key };
       } else {
         item.bind = dic[0];
       }
@@ -1162,6 +1236,18 @@ let methods = {
     //绑定下拉框的数据源
     //绑定后台的字典数据
     dic.forEach((d) => {
+      if (d.data.length >= (this.select2Count || 500)) {
+        if (
+          !this.dicKeys.some((x) => {
+            return x.dicNo == d.dicNo && x.type == 'cascader';
+          })
+        ) {
+          d.data.forEach((item) => {
+            item.label = item.value;
+            item.value = item.key;
+          });
+        }
+      }
       this.dicKeys.forEach((x) => {
         if (x.dicNo != d.dicNo) return true;
         //2020.10.26增加级联数据源绑定处理
@@ -1170,11 +1256,11 @@ let methods = {
           //生成tree结构
           let _data = JSON.parse(JSON.stringify(d.data));
           //2022.04.04增加级联字典数据源刷新后table没有变化的问题
-          this.columns.forEach(column=>{
-             if (column.bind&&column.bind.key==d.dicNo) {
-                 column.bind.data=d.data;
-             }
-          })
+          this.columns.forEach((column) => {
+            if (column.bind && column.bind.key == d.dicNo) {
+              column.bind.data = d.data;
+            }
+          });
           let arr = this.base.convertTree(_data, (node, data, isRoot) => {
             if (!node.inited) {
               node.inited = true;
@@ -1244,7 +1330,12 @@ let methods = {
   initDicKeys() {
     //初始化字典数据
     let keys = [];
-    this.dicKeys.splice(0);
+    //2022.04.17优化重新加载数据源
+    this.dicKeys.forEach((item) => {
+      item.data.splice(0);
+      item.orginData && item.orginData.splice(0);
+    });
+    //this.dicKeys.splice(0);
     //初始化编辑数据源,默认为一个空数组，如果要求必填设置type=number/decimal的最小值
     this.initFormOptions(this.editFormOptions, keys, this.editFormFields, true);
     //初始化查询数据源,默认为一个空数组
@@ -1287,7 +1378,7 @@ let methods = {
     this.http.post('/api/Sys_Dictionary/GetVueDictionary', keys).then((dic) => {
       $this.bindOptions(dic);
       //2022.04.04增加字典加载完成方法
-      $this.dicInited&&$this.dicInited(dic)
+      $this.dicInited && $this.dicInited(dic);
     });
   },
   setFiexdColumn(columns, containerWidth) {
@@ -1351,7 +1442,7 @@ let methods = {
       clientHeight = clientHeight * 0.85;
       if (!this.detailOptions.height) {
         this.detailOptions.height =
-          clientHeight - this.editFormOptions.length * 57 - 205;
+          clientHeight - this.editFormOptions.length * 36 - 234;
         this.detailOptions.height =
           this.detailOptions.height < 240 ? 240 : this.detailOptions.height;
       }
@@ -1428,6 +1519,17 @@ let methods = {
       };
     }
   },
+  tableBeginEdit(row, column, index) {
+    //2021.03.19是否开启查询界面表格双击编辑结束方法,返回false不会结束编辑
+    return this.beginEdit(row, column, index);
+  },
+  beginEdit(row, column, index) {
+    //2021.03.19是否开启查询界面表格双击编辑结束方法,返回false不会结束编辑
+    return true;
+  },
+  tableEndEditBefore(row, column, index) {
+    return this.endEditBefore(row, column, index);
+  },
   endEditBefore(row, column, index) {
     //2021.03.19是否开启查询界面表格双击编辑结束方法,返回false不会结束编辑
     return true;
@@ -1476,8 +1578,114 @@ let methods = {
       return;
     }
     this.importAfter(data);
+  },
+  onGridModelClose(iconClick) {
+    if (this.isBoxAudit) {
+      this.initFormOptionType(false);
+    }
+    this.isBoxAudit = false;
+    this.onModelClose(iconClick);
+  },
+  initAuditColumn() {
+    let _btn = this.buttons.find((x) => {
+      return x.value == 'Audit';
+    });
+    let auditField = this.columns
+      .map((m) => {
+        return m.field;
+      })
+      .find((name) => {
+        return (name || '').toLowerCase() == 'auditstatus';
+      });
+    if (!_btn || !auditField) return;
+
+    _btn.hidden = true;
+    this.columns.push({
+      field: '操作',
+      title: '操作',
+      width: 70,
+      fixed: 'right',
+      align: 'center',
+      formatter: (row) => {
+        return (
+          '<i style="cursor: pointer;color: #2d8cf0;"' +
+          (row[auditField]
+            ? 'class="el-icon-view">查看</i>'
+            : 'class="el-icon-edit">审核</i>')
+        );
+      },
+      click: (row) => {
+        this.getWorkFlowSteps(row);
+      }
+    });
+  },
+  getWorkFlowSteps(row) {
+    let table = this.table.url.replaceAll('/', '');
+    let url = `api/Sys_WorkFlow/getSteps?tableName=${table}&id=${row[this.table.key]
+      }`;
+    this.http.get(url, {}, true).then((result) => {
+      this.workFlowSteps.splice(0);
+      //有可能没有配置审批流程
+      if (!result.list || !result.list.length) {
+        result.list = [];
+        this.auditParam.showAction = true;
+        this.auditParam.height = 240;
+        this.auditParam.showViewButton = row.AuditStatus == 0;
+      } else {
+        this.auditParam.showAction = result.list.some((c) => {
+          return c.isCurrentUser;
+        });
+        this.auditParam.height = 511;
+        this.auditParam.showViewButton = true;
+      }
+      this.auditParam.reason = '';
+      this.auditParam.status = -1;
+      this.auditParam.value = -1;
+      if (result.his) {
+        result.his.forEach((item) => {
+          item.auditStatus = this.getAuditStatus(item.auditStatus);
+        });
+      }
+
+      this.auditParam.auditHis = result.his;
+      this.workFlowSteps.push(...result.list);
+      this.isBoxAudit = true;
+      this.initFormOptionType(true);
+      this.edit(row);
+      this.boxOptions.title = '审核';
+    });
+  },
+  initFormOptionType(isReadonly) {
+    this.editFormOptions.forEach((options) => {
+      options.forEach((option) => {
+        if (isReadonly) {
+          if (!option.readonly) {
+            this.formFieldsType.push(option.field);
+            option.readonly = true;
+          }
+        } else {
+          if (this.formFieldsType.indexOf(option.field) != -1) {
+            option.readonly = false;
+          }
+        }
+      });
+    });
+  },
+  getAuditStatus(status) {
+    let data = this.auditParam.data.find((x) => {
+      return x.value == status;
+    });
+    if (!data) {
+      return '-';
+      //   return `审核值不正确:${status}`
+    }
+    return data.text;
+  },
+  isViewFlow() {
+    return this.$route.query.viewflow == '1';
   }
 };
+import customColumns from './ViewGridCustomColumn.js';
 //合并扩展方法
-methods = Object.assign(methods, detailMethods, serviceFilter);
+methods = Object.assign(methods, detailMethods, serviceFilter, customColumns);
 export default methods;

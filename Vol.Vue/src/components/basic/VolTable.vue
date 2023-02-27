@@ -62,6 +62,13 @@
           :align="column.align"
           :sortable="column.sort ? 'custom' : false"
         >
+          <template slot="header" slot-scope="scope">
+            <i
+              v-if="(column.require || column.required) && column.edit"
+              class="column-required"
+              >*</i
+            >{{ column.title }}
+          </template>
           <!-- 2022.01.08增加多表头，现在只支持常用功能渲染，不支持编辑功能(涉及到组件重写) -->
           <el-table-column
             style="border: none"
@@ -230,27 +237,6 @@
                     :placeholder="column.placeholder || column.title"
                   ></Input>
                 </div>
-                <div
-                  class="extra"
-                  v-if="column.extra && edit.rowIndex == scope.$index"
-                >
-                  <a
-                    :style="column.extra.style"
-                    @click="
-                      () => {
-                        column.extra.click &&
-                          column.extra.click(
-                            column,
-                            scope.row,
-                            url ? rowData : tableData
-                          );
-                      }
-                    "
-                  >
-                    <Icon v-if="column.extra.icon" :type="column.extra.icon" />
-                    {{ column.extra.text }}
-                  </a>
-                </div>
               </div>
               <template v-else>
                 <div
@@ -262,6 +248,24 @@
             </div>
             <!--没有编辑功能的直接渲染标签-->
             <template v-else>
+              <a
+                class="extra"
+                v-if="column.extra"
+                :style="column.extra.style"
+                @click="
+                  () => {
+                    column.extra.click &&
+                      column.extra.click(
+                        column,
+                        scope.row,
+                        url ? rowData : tableData
+                      );
+                  }
+                "
+              >
+                <Icon v-if="column.extra.icon" :type="column.extra.icon" />
+                {{ column.extra.text }}
+              </a>
               <a
                 href="javascript:void(0)"
                 @click="link(scope.row, column, $event)"
@@ -963,7 +967,10 @@ export default {
         return true;
       }
       // 结束编辑前
-      if (!this.endEditBefore(row, column, this.edit.rowIndex)) return false;
+      let _row = this.url
+        ? this.rowData[this.edit.rowIndex]
+        : this.tableData[this.edit.rowIndex];
+      if (!this.endEditBefore(_row, column, this.edit.rowIndex)) return false;
 
       if (
         this.edit.rowIndex != -1 &&
@@ -997,7 +1004,7 @@ export default {
       if (this.errorFiled) {
         return false;
       }
-      if (!this.endEditAfter(row, column, this.edit.rowIndex)) return false;
+      if (!this.endEditAfter(_row, column, this.edit.rowIndex)) return false;
       //  this.errorFiled = "";
       this.edit.rowIndex = -1;
       return true;
@@ -1394,6 +1401,13 @@ export default {
   > div:first-child {
     flex: 1;
   }
+}
+.column-required {
+  position: relative;
+  color: #f20303;
+  font-size: 14px;
+  top: 2px;
+  right: 2px;
 }
 </style>
 

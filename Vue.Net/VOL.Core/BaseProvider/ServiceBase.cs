@@ -19,6 +19,7 @@ using VOL.Core.ManageUser;
 using VOL.Core.Services;
 using VOL.Core.Tenancy;
 using VOL.Core.Utilities;
+using VOL.Core.WorkFlow;
 using VOL.Entity;
 using VOL.Entity.DomainModels;
 using VOL.Entity.SystemModels;
@@ -125,7 +126,7 @@ namespace VOL.Core.BaseProvider
             //例如sql，只能(编辑)自己创建的数据:判断数据是不是当前用户创建的
             //sql = $" {sql} and createid!={UserContext.Current.UserId}";
             object obj = repository.DapperContext.ExecuteScalar(sql, null);
-            if (obj == null || obj.GetInt() > 0)
+            if (obj == null || obj.GetInt() == 0)
             {
                 Response.Error("不能编辑此数据");
             }
@@ -143,7 +144,8 @@ namespace VOL.Core.BaseProvider
             //例如sql，只能(删除)自己创建的数据:找出不是自己创建的数据
             //sql = $" {sql} and createid!={UserContext.Current.UserId}";
             object obj = repository.DapperContext.ExecuteScalar(sql, null);
-            if (obj == null || obj.GetInt() > 0)
+            int idsCount = ids.Split(",").Distinct().Count();
+            if (obj == null || obj.GetInt() != idsCount)
             {
                 Response.Error("不能删除此数据");
             }
@@ -161,34 +163,47 @@ namespace VOL.Core.BaseProvider
             {
                 return base.OrderByExpression.GetExpressionToDic();
             }
-            //排序字段不存在直接移除
-            if (!string.IsNullOrEmpty(pageData.Sort) && !propertyInfo.Any(x => x.Name.ToLower() == pageData.Sort.ToLower()))
+            if (!string.IsNullOrEmpty(pageData.Sort))
             {
-                pageData.Sort = null;
+                if (pageData.Sort.Contains(","))
+                {
+                    var sortArr = pageData.Sort.Split(",").Where(x => propertyInfo.Any(c => c.Name == x)).Select(s => s).Distinct().ToList();
+                    Dictionary<string, QueryOrderBy> sortDic = new Dictionary<string, QueryOrderBy>();
+                    foreach (var name in sortArr)
+                    {
+                        sortDic[name] = pageData.Order?.ToLower() == _asc ? QueryOrderBy.Asc : QueryOrderBy.Desc;
+                    }
+                    return sortDic;
+                }
+                else if (propertyInfo.Any(x => x.Name == pageData.Sort))
+                {
+                    return new Dictionary<string, QueryOrderBy>() { {
+                            pageData.Sort,
+                            pageData.Order?.ToLower() == _asc? QueryOrderBy.Asc: QueryOrderBy.Desc
+                     } };
+                }
             }
             //如果没有排序字段，则使用主键作为排序字段
-            if (string.IsNullOrEmpty(pageData.Sort))
+
+            PropertyInfo property = propertyInfo.GetKeyProperty();
+            //如果主键不是自增类型则使用appsettings.json中CreateMember->DateField配置的创建时间作为排序
+            if (property.PropertyType == typeof(int) || property.PropertyType == typeof(long))
             {
-                PropertyInfo property = propertyInfo.GetKeyProperty();
-                //如果主键不是自增类型则使用appsettings.json中CreateMember->DateField配置的创建时间作为排序
-                if (property.PropertyType == typeof(int) || property.PropertyType == typeof(long))
+                if (!propertyInfo.Any(x => x.Name.ToLower() == pageData.Sort))
                 {
-                    if (!propertyInfo.Any(x => x.Name.ToLower() == pageData.Sort))
-                    {
-                        pageData.Sort = propertyInfo.GetKeyName();
-                    }
+                    pageData.Sort = propertyInfo.GetKeyName();
+                }
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(AppSetting.CreateMember.DateField)
+                    && propertyInfo.Any(x => x.Name == AppSetting.CreateMember.DateField))
+                {
+                    pageData.Sort = AppSetting.CreateMember.DateField;
                 }
                 else
                 {
-                    if (!string.IsNullOrEmpty(AppSetting.CreateMember.DateField)
-                        && propertyInfo.Any(x => x.Name == AppSetting.CreateMember.DateField))
-                    {
-                        pageData.Sort = AppSetting.CreateMember.DateField;
-                    }
-                    else
-                    {
-                        pageData.Sort = propertyInfo.GetKeyName();
-                    }
+                    pageData.Sort = propertyInfo.GetKeyName();
                 }
             }
             return new Dictionary<string, QueryOrderBy>() { {
@@ -270,7 +285,12 @@ namespace VOL.Core.BaseProvider
             }
             if (options.Export)
             {
-                pageGridData.rows = queryable.GetIQueryableOrderBy(orderbyDic).Take(Limit).ToList();
+                queryable= queryable.GetIQueryableOrderBy(orderbyDic);
+                if (Limit > 0)
+                {
+                    queryable = queryable.Take(Limit);
+                }
+                pageGridData.rows = queryable.ToList();
             }
             else
             {
@@ -324,13 +344,9 @@ namespace VOL.Core.BaseProvider
             var queryeable = repository.DbContext.Set<Detail>().Where(whereExpression);
 
             gridData.total = queryeable.Count();
+            options.Sort = options.Sort ?? typeof(Detail).GetKeyName();
+            Dictionary<string, QueryOrderBy> orderBy = GetPageDataSort(options, typeof(Detail).GetProperties());
 
-            string sortName = options.Sort ?? typeof(Detail).GetKeyName();
-            Dictionary<string, QueryOrderBy> orderBy = new Dictionary<string, QueryOrderBy>() { {
-                     sortName,
-                     options.Order == "asc" ?
-                     QueryOrderBy.Asc :
-                     QueryOrderBy.Desc } };
             gridData.rows = queryeable
                  .GetIQueryableOrderBy(orderBy)
                 .Skip((options.Page - 1) * options.Rows)
@@ -351,26 +367,28 @@ namespace VOL.Core.BaseProvider
         {
             if (files == null || files.Count == 0) return Response.Error("请上传文件");
 
-            //var limitFiles = files.Where(x => x.Length > LimitUpFileSizee * 1024 * 1024).Select(s => s.FileName);
-            //if (limitFiles.Count() > 0)
-            //{
-            //    return Response.Error($"文件大小不能超过：{ LimitUpFileSizee}M,{string.Join(",", limitFiles)}");
-            //}
-            string filePath = $"Upload/Tables/{typeof(T).GetEntityTableName()}/{DateTime.Now.ToString("yyyMMddHHmmsss") + new Random().Next(1000, 9999)}/";
+            string filePath;
+            if (!string.IsNullOrEmpty(UploadFolder))
+            {
+                filePath = UploadFolder;
+                if (!filePath.EndsWith("/")|| !filePath.EndsWith("\\"))
+                {
+                    filePath += "/";
+                }
+            }
+            else
+            {
+                filePath = $"Upload/Tables/{typeof(T).GetEntityTableName()}/{DateTime.Now.ToString("yyyMMddHHmmsss") + new Random().Next(1000, 9999)}/";
+            }
+
             string fullPath = filePath.MapPath(true);
             int i = 0;
-            //   List<string> fileNames = new List<string>();
             try
             {
                 if (!Directory.Exists(fullPath)) Directory.CreateDirectory(fullPath);
                 for (i = 0; i < files.Count; i++)
                 {
                     string fileName = files[i].FileName;
-                    //if (fileNames.Contains(fileName))
-                    //{
-                    //    fileName += $"({i}){fileName}";
-                    //}
-                    //fileNames.Add(fileName);
                     using (var stream = new FileStream(fullPath + fileName, FileMode.Create))
                     {
                         files[i].CopyTo(stream);
@@ -425,7 +443,8 @@ namespace VOL.Core.BaseProvider
             }
             try
             {
-                Response = EPPlusHelper.ReadToDataTable<T>(dicPath, DownLoadTemplateColumns, GetIgnoreTemplate());
+                //2022.06.20增加原生excel读取方法(导入时可以自定义读取excel内容)
+                Response = EPPlusHelper.ReadToDataTable<T>(dicPath, DownLoadTemplateColumns, GetIgnoreTemplate(), readValue: ImportOnReadCellValue);
             }
             catch (Exception ex)
             {
@@ -443,7 +462,7 @@ namespace VOL.Core.BaseProvider
             if (HttpContext.Current.Request.Query.ContainsKey("table"))
             {
                 ImportOnExecuted?.Invoke(list);
-                return Response.OK("文件上传成功",list.Serialize());
+                return Response.OK("文件上传成功", list.Serialize());
             }
             repository.AddRange(list, true);
             if (ImportOnExecuted != null)
@@ -451,7 +470,7 @@ namespace VOL.Core.BaseProvider
                 Response = ImportOnExecuted.Invoke(list);
                 if (CheckResponseResult()) return Response;
             }
-            return Response.OK("文件上传成功" );
+            return Response.OK("文件上传成功");
         }
 
         /// <summary>
@@ -523,6 +542,7 @@ namespace VOL.Core.BaseProvider
             if (saveDataModel.DetailData == null || saveDataModel.DetailData.Count == 0)
             {
                 T mainEntity = saveDataModel.MainData.DicToEntity<T>();
+                SetAuditDefaultValue(mainEntity);
                 if (base.AddOnExecuting != null)
                 {
                     Response = base.AddOnExecuting(mainEntity, null);
@@ -540,6 +560,7 @@ namespace VOL.Core.BaseProvider
                     return Response;
                 });
                 if (Response.Status) Response.Data = new { data = saveDataModel.MainData };
+                AddProcese(mainEntity);
                 return Response;
             }
 
@@ -569,6 +590,7 @@ namespace VOL.Core.BaseProvider
         {
             //设置用户默认值
             entity.SetCreateDefaultVal();
+            SetAuditDefaultValue(entity);
             if (validationEntity)
             {
                 Response = entity.ValidationEntity();
@@ -611,8 +633,51 @@ namespace VOL.Core.BaseProvider
                 return Response;
             });
             if (Response.Status && string.IsNullOrEmpty(Response.Message))
+            {
                 Response.OK(ResponseType.SaveSuccess);
+            }
+            AddProcese(entity);
             return Response;
+        }
+
+        /// <summary>
+        /// 设置审批字段默认值
+        /// </summary>
+        /// <param name="entity"></param>
+        private void SetAuditDefaultValue(T entity)
+        {
+            if (!WorkFlowManager.Exists<T>())
+            {
+                return;
+            }
+            var propertity = TProperties.Where(x => x.Name.ToLower() == "auditstatus").FirstOrDefault();
+            if (propertity != null && propertity.GetValue(entity) == null)
+            {
+                propertity.SetValue(entity, 0);
+            }
+        }
+        /// <summary>
+        /// 写入流程
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="entity"></param>
+        /// <param name="changeTableStatus">是否修改原表的审批状态</param>
+        protected void RewriteFlow(T entity, bool changeTableStatus = true)
+        {
+            WorkFlowManager.AddProcese(entity, true, changeTableStatus);
+        }
+        private void AddProcese(T entity)
+        {
+            if (!CheckResponseResult() && WorkFlowManager.Exists<T>())
+            {
+                if (AddWorkFlowExecuting != null && !AddWorkFlowExecuting.Invoke(entity))
+                {
+                    return;
+                }
+                //写入流程
+                WorkFlowManager.AddProcese<T>(entity);
+                WorkFlowManager.Audit<T>(entity, AuditStatus.审核中, null, null, null, null, init: true, initInvoke: AddWorkFlowExecuted);
+            }
         }
 
         public void AddDetailToDBSet<TDetail>() where TDetail : class
@@ -741,25 +806,26 @@ namespace VOL.Core.BaseProvider
             repository.Update(mainEnity, typeof(T).GetEditField()
                 .Where(c => saveModel.MainData.Keys.Contains(c) && !CreateFields.Contains(c))
                 .ToArray());
-            foreach (var item in saveModel.DetailData)
-            {
-                item.SetModifyDefaultVal();
-            }
+            //foreach (var item in saveModel.DetailData)
+            //{
+            //    item.SetModifyDefaultVal();
+            //}
             //明细修改
             editList.ForEach(x =>
             {
                 //获取编辑的字段
-                string[] updateField = saveModel.DetailData
+                var updateField = saveModel.DetailData
                     .Where(c => c[detailKeyInfo.Name].ChangeType(detailKeyInfo.PropertyType)
                     .Equal(detailKeyInfo.GetValue(x)))
                     .FirstOrDefault()
                     .Keys.Where(k => k != detailKeyInfo.Name)
                     .Where(r => !CreateFields.Contains(r))
-                    .ToArray();
+                    .ToList();
+                updateField.AddRange(ModifyFields);
                 //設置默認值
                 x.SetModifyDefaultVal();
                 //添加修改字段
-                repository.Update<DetailT>(x, updateField);
+                repository.Update<DetailT>(x, updateField.ToArray());
             });
 
             //明细新增
@@ -860,6 +926,16 @@ namespace VOL.Core.BaseProvider
             if (saveModel == null)
                 return Response.Error(ResponseType.ParametersLack);
 
+
+            //if (WorkFlowManager.Exists<T>())
+            //{
+            //    var auditProperty = TProperties.Where(x => x.Name.ToLower() == "auditstatus").FirstOrDefault();
+            //    string value = saveModel.MainData[auditProperty.Name]?.ToString();
+            //    if (WorkFlowManager.GetAuditStatus<T>(value) != 1)
+            //    {
+            //        return Response.Error("数据已经在审核中，不能修改");
+            //    }
+            //}
             Type type = typeof(T);
 
             //设置修改时间,修改人的默认值
@@ -1000,7 +1076,7 @@ namespace VOL.Core.BaseProvider
 
                 //主键值是否正确
                 string detailKeyVal = dic[detailKeyInfo.Name].ToString();
-                if (!mainKeyProperty.ValidationValueForDbType(detailKeyVal).FirstOrDefault().Item1
+                if (!detailKeyInfo.ValidationValueForDbType(detailKeyVal).FirstOrDefault().Item1
                     || deatilDefaultVal == detailKeyVal)
                     return Response.Error(ResponseType.KeyError);
 
@@ -1117,8 +1193,35 @@ namespace VOL.Core.BaseProvider
         {
             if (keys == null || keys.Length == 0)
                 return Response.Error("未获取到参数!");
-            if (auditStatus != 1 && auditStatus != 2)
-                return Response.Error("请提求正确的审核结果!");
+
+            Expression<Func<T, bool>> whereExpression = typeof(T).GetKeyName().CreateExpression<T>(keys[0], LinqExpressionType.Equal);
+            T entity = repository.FindAsIQueryable(whereExpression).FirstOrDefault();
+
+            //进入流程审批
+            if (WorkFlowManager.Exists<T>(entity))
+            {
+                var auditProperty = TProperties.Where(x => x.Name.ToLower() == "auditstatus").FirstOrDefault();
+                if (auditProperty == null)
+                {
+                    return Response.Error("表缺少审核状态字段：AuditStatus");
+                }
+
+                AuditStatus status = (AuditStatus)Enum.Parse(typeof(AuditStatus), auditStatus.ToString());
+                if (auditProperty.GetValue(entity).GetInt() != (int)AuditStatus.审核中)
+                {
+                    return Response.Error("只能审批审核中的数据");
+                }
+                Response = repository.DbContextBeginTransaction(() =>
+                {
+                    return WorkFlowManager.Audit<T>(entity, status, auditReason, auditProperty, AuditWorkFlowExecuting, AuditWorkFlowExecuted);
+                });
+                if (Response.Status)
+                {
+                    return Response.OK(ResponseType.AuditSuccess);
+                }
+                return Response.Error(Response.Message ?? "审批失败");
+            }
+
 
             //获取主键
             PropertyInfo property = TProperties.GetKeyProperty();
@@ -1136,7 +1239,7 @@ namespace VOL.Core.BaseProvider
                 object convertVal = value.ToString().ChangeType(property.PropertyType);
                 if (convertVal == null) continue;
 
-                T entity = Activator.CreateInstance<T>();
+                entity = Activator.CreateInstance<T>();
                 property.SetValue(entity, convertVal);
                 foreach (var item in updateFileds)
                 {
@@ -1166,13 +1269,21 @@ namespace VOL.Core.BaseProvider
                 Response = AuditOnExecuting(auditList);
                 if (CheckResponseResult()) return Response;
             }
-            repository.UpdateRange(auditList, updateFileds.Select(x => x.Name).ToArray(), true);
-            if (base.AuditOnExecuted != null)
+            Response = repository.DbContextBeginTransaction(() =>
             {
-                Response = AuditOnExecuted(auditList);
-                if (CheckResponseResult()) return Response;
+                repository.UpdateRange(auditList, updateFileds.Select(x => x.Name).ToArray(), true);
+                if (base.AuditOnExecuted != null)
+                {
+                    Response = AuditOnExecuted(auditList);
+                    if (CheckResponseResult()) return Response;
+                }
+                return Response.OK();
+            });
+            if (Response.Status)
+            {
+                return Response.OK(ResponseType.AuditSuccess);
             }
-            return Response.OK(ResponseType.AuditSuccess);
+            return Response.Error(Response.Message);
         }
 
         public virtual (string, T, bool) ApiValidate(string bizContent, Expression<Func<T, object>> expression = null)

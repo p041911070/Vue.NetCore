@@ -26,7 +26,10 @@ namespace VOL.Core.Utilities
         /// <param name="ignoreColumns">忽略不导出的列(如果设置了exportColumns,ignoreColumns不会生效)</param>
         /// <returns></returns>
 
-        public static WebResponseContent ReadToDataTable<T>(string path, Expression<Func<T, object>> exportColumns = null, List<string> ignoreTemplate = null)
+        public static WebResponseContent ReadToDataTable<T>(string path,
+            Expression<Func<T, object>> exportColumns = null,
+            List<string> ignoreTemplate = null,
+            Func<string, ExcelWorksheet, ExcelRange, int, int, string> readValue = null)
         {
             WebResponseContent responseContent = new WebResponseContent();
 
@@ -90,7 +93,13 @@ namespace VOL.Core.Utilities
                     T entity = Activator.CreateInstance<T>();
                     for (int j = sheet.Dimension.Start.Column, k = sheet.Dimension.End.Column; j <= k; j++)
                     {
+
                         string value = sheet.Cells[m, j].Value?.ToString();
+                        //2022.06.20增加原生excel读取方法
+                        if (readValue != null)
+                        {
+                            value = readValue(value, sheet, sheet.Cells[m, j], m, j);
+                        }
 
                         CellOptions options = cellOptions.Where(x => x.Index == j).FirstOrDefault();
                         PropertyInfo property = propertyInfos.Where(x => x.Name == options.ColumnName).FirstOrDefault();
@@ -113,9 +122,25 @@ namespace VOL.Core.Utilities
                             {
                                 return responseContent.Error($"[{options.ColumnCNName}]字段数字典编号[{options.DropNo}]缺失,请检查字典配置");
                             }
-                            string key = options.KeyValues.Where(x => x.Value == value)
-                                  .Select(s => s.Key)
-                                  .FirstOrDefault();
+                            string key = null;
+                            //2022.11.21增加导入多选的支持
+                            if ((options.EditType == "selectList" || options.EditType == "checkbox") && !string.IsNullOrEmpty(value))
+                            {
+                                var cellValues = value.Replace("，", ",").Split(",").Where(x=>!string.IsNullOrEmpty(x)).ToArray();
+                                var keys = options.KeyValues.Where(x => cellValues.Contains(x.Value))
+                                    .Select(s => s.Key).ToArray();
+                                if (cellValues.Length==keys.Length)
+                                {
+                                    key = string.Join(",",keys);
+                                }
+                            }
+                            else
+                            {
+                                key = options.KeyValues.Where(x => x.Value == value)
+                                    .Select(s => s.Key)
+                                    .FirstOrDefault();
+                            }
+
                             if (key == null)//&& options.Requierd
                             {
                                 //小于20个字典项，直接提示所有可选value
@@ -473,7 +498,7 @@ namespace VOL.Core.Utilities
             {
                 query = query.Where(x => x.IsDisplay == 1);
             }
-            List<CellOptions> cellOptions = query.Select(c => new CellOptions()
+            List<CellOptions> cellOptions = query.OrderByDescending(x => x.OrderNo).Select(c => new CellOptions()
             {
                 ColumnName = c.ColumnName,
                 ColumnCNName = c.ColumnCnName,
@@ -516,7 +541,17 @@ namespace VOL.Core.Utilities
             }
             return cellOptions;
         }
-     
+
+        public static string ExportGeneralExcel(
+         List<Dictionary<string, object>> rows,
+         string fileName,
+         string path = null,
+         Action<ExcelWorksheet, int, int, object> onFillCell = null,
+         Action<ExcelWorksheet> saveBefore = null)
+        {
+            return ExportGeneralExcel(rows.Select(item => item as IDictionary<string, object>).ToList(), fileName, path, onFillCell, saveBefore);
+        }
+
         /// <summary>
         /// 2021.01.10增加通过excel导出功能
         /// </summary>
@@ -527,7 +562,7 @@ namespace VOL.Core.Utilities
         /// <param name="saveBefore"></param>
         /// <returns></returns>
         public static string ExportGeneralExcel(
-                List<Dictionary<string, object>> rows,
+                List<IDictionary<string, object>> rows,
                 string fileName,
                 string path = null,
                 Action<ExcelWorksheet, int, int, object> onFillCell = null,

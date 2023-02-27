@@ -57,6 +57,22 @@ const routes = [
         meta:{
           keepAlive:false
         }
+      },
+      {
+        path: '/signalR', 
+        name: 'signalR',
+        component: () => import('@/views/signalR/Index.vue'),
+        meta:{
+          keepAlive:false
+        }
+      },
+      {
+        path: '/flowdemo', //发起流程示例
+        name: 'flowdemo',
+        component: () => import('@/views/system/flow/FlowDemo.vue'),
+        meta: {
+          keepAlive: false
+        }
       }
     ]
   },

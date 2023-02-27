@@ -16,20 +16,26 @@
  - 编写各种后台restful api接口。后台基础代码由代码生成器完成,在生成的代码上继续编写业务即可
  - 前端表单开发(直接上手看demo即可)
  - 配合app做H5或全h5开发
- - 发布静态(h5)页面,框架已经提供了demo
+ - 移动端开发、app、微信小程序(uniapp)，见下面介绍
  - 在现有的代码生成器功能上，继续定制开发代码生成器功能,解决重复性工作
 ## 框架开发依赖环境
- - 后台：VS2019 、.NetCore3.1 、EFCore3.1、JWT、Dapper、Autofac、SqlServer/MySql、Redis(可选,默认使用内置IMemory)
- - 前端：VsCode、Vue2/vue3（webpack、node.js,如果没有此环境自行搜索:vue webpack npm)、vuex、axios、promise、iview、element-ui
- 
+ - 后台：VS2019、vs2022 、.NetCore3.1 、.Net6、EFCore3.1/6.0、JWT、Dapper、SignalR、Quartz.Net、Autofac、SqlServer/MySql/PGSql/Oracle、Redis
+ - 前端：VsCode、Vue2/vue3（需要安装nodejs)、vuex、axios、promise、element ui、element plus
+## 链接
+
 ## [vol框架视频](https://www.cctalk.com/m/group/90268531)
+## [iMES工厂管家](https://imes.625sc.com/)
 ## [NET视频教程(微软MVP-ACE录制)](https://space.bilibili.com/525836469)
+## [元讯趣编程交流社区](https://www.qubcedu.com/)
+
 ## 项目启动与上手
  - http://v2.volcore.xyz/document/guide
 ## vue2版本
  - http://v2.volcore.xyz
 ## vue3版本
  - http://www.volcore.xyz
+## 演示地址2
+ - http://120.48.115.252:9990/
 ## App/H5开发
  - http://v2.volcore.xyz/app/guide
 ## 框架移动端（uniapp）已发布,同样全自动生成代码

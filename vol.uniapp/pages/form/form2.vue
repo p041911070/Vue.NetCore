@@ -3,7 +3,7 @@
 		<vol-alert>
 			<view>vol-form封装了事件绑定、下拉框自动绑定数据源、多选、单选、日期、日期范围选择等常用组件操作</view>
 		</vol-alert>
-		<vol-form @onChange="onChange" :load-key="true" ref="form" :form-options.sync="editFormOptions"
+		<vol-form @extraClick="extraClick" @onChange="onChange" :load-key="true" ref="form" :form-options.sync="editFormOptions"
 			:formFields.sync="editFormFields">
 		</vol-form>
 
@@ -24,9 +24,10 @@
 			return {
 				editFormFields: {
 					inputText: "这是必填输入框",
+					customInput: "",
 					textarea: "这里的文字有点长这里的文字有点长这里的文字有点长。。",
 					pwd: "12345",
-					readonlyText:"只读输入框",
+					readonlyText: "只读输入框",
 					selectVal: "",
 					selectListVal: [], //多选这里的值是数组 
 					dateValue: "2022-03-27",
@@ -34,13 +35,35 @@
 					dateRange: ["2022-03-10", "2022-06-20"], //数组 
 					switchValue: 1,
 					selectClickValue: "",
-					dateClickValue: null
+					dateClickValue: null,
+					imgs: [{
+						url: "http://api.volcore.xyz/Upload/Tables/Sys_User/202006191408112343/1111s.jpg"
+					}, {
+						url: "http://api.volcore.xyz/Upload/Tables/App_News/202204201140571762/20-05.png"
+					}]
 				},
 				editFormOptions: [{
 						"title": "输入框",
 						"required": true,
 						"field": "inputText"
-					}, {
+					},
+					{
+						"title": "自定义按钮",
+						"field": "customInput",
+						 extra: {
+							style: "background: #00aaff;margin-left:16rpx;border-radius: 30rpx;font-size: 24rpx;padding: 4rpx 16rpx;color: #ffff;",
+							text: "按钮",
+							icon: "map",
+							color: "#ffff",
+							size: 12
+						}
+					},
+					{
+						"title": "表单字段定义按钮及点击事件,示例见form2.vue",
+						style:"padding-left:16rpx;font-weight: 500;color: #9e9e9e;font-size: 26rpx;",
+						type: "group"
+					}, 
+					{
 						"title": "多文本",
 						"field": "textarea",
 						type: "textarea"
@@ -116,11 +139,26 @@
 						"title": "日期事件",
 						"type": "date",
 						"field": "dateClickValue"
+					}, {
+						type: "group" //表单分组
+					},
+					{
+						"title": "图片上传",
+						"type": "img",
+						"url": "api/sys_user/upload", //后台框架自带的上传方法，如果涉及权限问题，请参照后台开发文档上重写权限来重写upload方法的权限
+						"multiple": true, //从图上传
+						"maxCount": 3, //最多只能上传3张图片
+						"field": "imgs"
 					},
 				],
 			}
 		},
 		methods: {
+			extraClick(item){
+				//点击后给表字段设置值
+				  this.editFormFields.customInput=~~(Math.random()*10000000)
+				  this.$toast('表单按钮点击:'+item.title)
+			},
 			onChange(field, value) { //日期与下拉框选择事件
 				if (field == "selectClickValue" || field == "dateClickValue") {
 					this.$toast(`选择字段${field}值${value}`)
@@ -159,5 +197,3 @@
 		}
 	}
 </style>
-
-

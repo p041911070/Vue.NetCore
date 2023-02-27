@@ -7,24 +7,25 @@ const param = {
     attr: [{ name: "loadKey", desc: "是否自动绑定select/checkboxt等标签的数据源", type: "bool", default: "false" },
     { name: "width", desc: "表单宽度", type: "number", default: "100%" },
     { name: "labelWidth", desc: "左边标签宽度", type: "number", default: "100" },
-    { name: "formFileds", desc: "表单字段key/value，如:{name:'admin',age:''}", type: "json", default: "" },
-    { name: "formFields", desc: "<span style='color:red;'>表单字段同上（此属性用于兼容上面字段拼写错误的问题，2020.09.13更新后才能使用）</span>", type: "json", default: "" },
+    { name: "formFields", desc: "表单字段存的值，如:{name:'admin',age:''}", type: "json", default: "" },
+   // { name: "formFields", desc: "<span style='color:red;'>表单字段同上（此属性用于兼容上面字段拼写错误的问题，2020.09.13更新后才能使用）</span>", type: "json", default: "" },
     { name: "disabled", desc: "是否只读", type: "bool", default: "false" },
     { name: "placeholder", desc: "标签提示文字", type: "string", default: "" },
     { name: "colSize", desc: "每行列的宽度，可选值:12,8,6,如果是12标签会占100%宽度", type: "number", default: "" },
     { name: "表单配置参数", desc: "表单字段的参数配置说明(数组的元素个数决定了表单每行显示的标签个数),配置实例参照【查看代码】", type: "array", default: "[]" },
     { name: "[[{", desc: "表单字段formRules的参数配置说明", type: "", default: "" },
     { name: "dataKey", desc: "数据源字典编号(菜单->系统->下拉框绑定中的字典编号)", type: "string", default: "" },
-    { name: "data", desc: "数据源，可以手动绑定格式[{key:1,value:'是'}],也可以自动绑定,自定绑定需要设置属性loadKey='true'", type: "array", default: "[]" },
+    { name: "data", desc: "数据源，可以手动绑定格式[{key:1,value:'是',hidden:false,disabled:false}],(hidden下拉框选项是否隐藏,disabled下拉框选项是否禁用,2022.05.08更新后才能使用),也可以自动绑定,自定绑定需要设置属性loadKey='true'", type: "array", default: "[]" },
     { name: "render", desc: "<span style='color:red;'>支持vue原生render处理,[前端开发->render渲染form对象1/2]为配置示例，render完整用法见vue官方文档(2020.06.20)</span>", type: "function", default: "" },
     { name: "title", desc: "标签名称", type: "string", default: "" },
     //
     { name: "disabled/readonly", desc: "是否只读", type: "bool", default: "false" },
+    { name: "inputStyle", desc: "<span style='color:red;'>输入框或者只读的自定义样式(只有vue3生效)</span>", type: "bool", default: "false" },
     { name: "hidden", desc: "<span style='color:red;'>字段(标签)是否显示2020.11.21</span>", type: "bool", default: "" },
     { name: "required", desc: "是否必填", type: "bool", default: "false" },
     { name: "field", desc: "字段，与表单字段必须相同", type: "string", default: "" },
     { name: "filter", desc: "启用搜索,只对select/selectList生效,默认下拉框数据源超出10个开启搜索", type: "bool", default: "false" },
-    { name: "type", desc: "渲染的标签类型,可选值,mail、text、textarea、img、checkbox、number、decimal、date、datetime、phone、switch、select、selectList(多选下拉框)、cascader(Iview级联组件,具体配置见上面[查看代码],2020.05.31)", type: "string", default: "text" },
+    { name: "type", desc: "渲染的标签类型,可选值,mail、text、textarea、img、checkbox、number、decimal、date、datetime、phone、switch、select、selectList(多选下拉框)、label(纯文本显示,vue3版本有效)、cascader(Iview级联组件,具体配置见上面[查看代码],2020.05.31)", type: "string", default: "text" },
     { name: "range", desc: "如果type是日期，需要选开始与结束日期,(2021.05.02增加区间文本)", type: "bool", default: "false" },
     { name: "min", desc: `字段如果是数字，会自动验证数字最大、小值；如果是字符串,
     会验证字符长度，如果日期，会限制日期可选范围<span style='color:red'>(日期范围选择2021.07.17更新volform.vue/voltable.vue组件后才能使用)</span>`, type: "number", default: "" },
@@ -122,6 +123,7 @@ const param = {
     { name: "render", desc: "<span style='color:red;'>支持vue原生render处理,[前端开发->render渲染form对象1/2]为配置示例，render完整用法见vue官方文档(2020.06.20)</span>", type: "function", default: "" },
     { name: "cellStyle", desc: "<span style='color:red;'>单元格td背景颜色,cellStyle:(row, rowIndex, columnIndex)=>  return { background: '#f3f3f3' }  2020.12.13 </span>", type: "function", default: "" },
     { name: "title", desc: "table列名", type: "string", default: "" },
+    { name: "showOverflowTooltip", desc: "<span style='color:red;'>当内容过长被隐藏时显示tooltip(2022.08.26更新voltable.vue组件,仅支持vue3版本)</span>", type: "boll", default: "false" },
     { name: "width", desc: "列宽度", type: "number", default: "" },
     { name: "sort", desc: "是否排序列", type: "bool", default: "false" },
     { name: "hidden", desc: "是否隐藏列", type: "bool", default: "false" },
@@ -207,19 +209,69 @@ const param = {
     },
     { name: "bind{", desc: "数据源绑定配置", type: "json", default: "" },
     { name: "key", desc: "后台字典数据的key", type: "string", default: "" },
-    { name: "data}", desc: "数据源,如果设置的loadKey=true,些处将设置为data:[]。格式:[{key:'1',value:'北京市'},{key:'2',value:'上海市'}],如果data长度>0，不会被loadKey从后台加载的数据源覆盖", type: "array", default: "[]" },
+    { name: "data}", desc: "数据源,如果设置的loadKey=true,些处将设置为data:[]。格式:[{key:'1',value:'北京市'},{key:'2',value:'上海市',hidden:false,disabled:false}],(hidden下拉框选项是否隐藏,disabled下拉框选项是否禁用,2022.05.08更新后才能使用),如果data长度>0，不会被loadKey从后台加载的数据源覆盖", type: "array", default: "[]" },
     { name: "formatter", desc: "列格式化处理,格式：formatter:(row) => {return '123'}", type: "function", default: "" },
     { name: "click", desc: "单元格点击事件,格式：click: (row, column, event) => {}", type: "function", default: "" },
     { name: "getColor", desc: "设置绑定了bind数据源属性的单元格颜色,格式：getColor:(row) => {return 'red'}", type: "function", default: "" },
-    { name: "-----}", desc: "-----columns属性介绍结尾处-----", type: "-----", default: "-----" },
+    { name: "-----}", desc: "-----columns属性介绍结尾处-----", type: "-----", default: "-----" }, 
     ],
     methods: [{ name: "delRow", desc: "删除选中行，this.$refs.自定义的名字.delRow()", param: "" },
     { name: "addRow", desc: "添加行，this.$refs.自定义的名字.addRow({'字段1':'值1','字段2':'值2'})；<br>批量添加行：this.$refs.自定义的名字.rowData.push(...[{'字段1':'值1'},{'字段2':'值2'}]);//<br>(vue3版本不要循环添加，请使用批量添加", param: "" },
     { name: "selection", desc: "获取选中的行，this.$refs.自定义的名字.selection,注意此处selection是属性", param: "" },
-    { name: "getSelected", desc: "获取选中的行(vue3版本才能使用)，this.$refs.自定义的名字.getSelected()", param: "" },
+    { name: "getSelected", desc: "获取选中的行(vue3版本才能使用)，this.$refs.自定义的ref名字.getSelected()", param: "" },
+    { name: "获取底部统计合计数据", desc: "this.$refs.自定义的ref名字.summaryData", param: "" },
+    { name: "获取/设置table正在编辑的行", desc: "this.$refs.自定义的ref名字.edit.rowIndex //设置值可以指定某行处于编辑状态，值为-1时关闭编辑状态，", param: "" },
     { name: "tableData/rowData", desc: "获取表中的所有行数据", param: "this.$refs.自定义的名字.tableData/rowData(如果传入了url参数，使用rowData)" },
     { name: "reset", desc: "清空表数据", param: "this.$refs.自定义的名字.reset" },
-    { name: "load", desc: "刷新表数据，this.$refs.自定义的名字.load({条件:xx},true),条件可以任意写你自己接收的格式,第二个参数是否重置分页信息", param: "" },
+    { name: "load", desc: `<p>
+    <div style="color:#D4D4D4;background-color:#1E1E1E;font-family:Consolas, &quot;font-size:14px;">
+      <div>
+        <div style="color:#D4D4D4;background-color:#1E1E1E;font-family:Consolas, &quot;font-size:14px;">
+          <div>
+            &nbsp; <span style="color:#6a9955;">//刷新表数据，this.$refs.自定义的名字.load(params,true)//也可以在loadBefore方法中实现查询条件</span>
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; <span style="color:#6a9955;">/*params查询条件格式：</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; let params = {</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; &nbsp; page: 1,//分页页数(可不填)</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; &nbsp; rows: 30,//分页大小(可不填)</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; &nbsp; sort:"排序字段",//可不填</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; &nbsp; order: "desc/asc", //可不填</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; &nbsp; wheres: [{ name: "字段1", value: "xx",displayType:"select/selectList/like" },</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{ name: "字段2", value: "x2",displayType:"select/selectList/like" }]// 查询条件(可不填) &nbsp; &nbsp; &nbsp; &nbsp;</span>
+          </div>
+          <div>
+            <span style="color:#6a9955;">&nbsp; &nbsp; &nbsp; };*/</span>
+          </div>
+          <div>
+            &nbsp; &nbsp;
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; <span style="color:#6a9955;">//第二个参数true:是否重置分页信息</span>
+          </div>
+        </div>
+      </div>
+      <div>
+      </div>
+    </div>
+  </p>
+  <p>
+    <br />
+  </p>`, param: "" },
     { name: "resetPage", desc: "重置分页信息，this.$refs.自定义的名字.resetPage()", param: "" },
     {
       name: "loadBefore", desc: `从后台加载数据前处理，也可参照【从api加载数据】Demo", param: "(param, callBack) 参数：param为查询相关配置，可自己修改此配置;callBack回调方法，callBack(true),如果回调传入false，将中断代码执行,<span style="display:none;"></span><span style="line-height:2;font-size:18px;"><span style="display:none;"></span><span style="font-size:14px;">&nbsp; &nbsp;
@@ -236,6 +288,7 @@ const param = {
     { name: "rowClick", desc: `单击行事件同时选中当前行选中:
     <p>
     rowClick ({ row, column, event }) {   </p>
+    <p>&nbsp;// this.$refs.table.$refs.table.clearSelection();//清除当前选中的行  </p>
         <p>&nbsp; this.$refs.table.$refs.table.toggleRowSelection(row);  </p>
         <p> },  </p>
     </p>
@@ -256,7 +309,7 @@ const param = {
   },
   viewGrid: {
     attr: [
-      { name: "自定义扩展页面获取父组件(获取生成页面对象)", desc: "<span style='color:red;'>1、通过 this.$emit('parentCall', $parent => { //如：调用页面查询 $parent.search()  })可以访问父组件ViewGird中的任何属性、对象、方法<p>2、见上面示例【扩展弹出框按钮】</p></span>", type: "", default: "" },
+      { name: "自定义扩展页面获取父组件(获取生成页面对象)", desc: "<span styl`e='color:red;'>1、通过 this.$emit('parentCall', $parent => { //如：调用页面查询 $parent.search()  })可以访问父组件ViewGird中的任何属性、对象、方法<p>2、见上面示例【扩展弹出框按钮】</p></span>", type: "", default: "" },
       { name: "获取自定义扩展页面", desc: "this.$refs.gridHeader/gridBody/gridFooter/modelHeader/modelBody/modelFooter", type: "", default: "" },
       { name: "rowKey", desc: "<span style='color:red;'>树形table的主键字段,字段的值必须是唯一的(2021.05.02)</span>", type: "String", default: "" },
       { name: "columns", desc: "查询页面table表的配置,如果满足不了业务,可参照VolTable参数动态扩展", type: "array", default: "[]" },
@@ -281,6 +334,7 @@ const param = {
     },
     { name: "extend", desc: "扩展js中的所有对象,如:doc_viewGirdExtension.js整个js文件的对象", type: "json", default: "array" },
     { name: "single", desc: "查询界面的表是否只能单选", type: "bool", default: "false" },
+    { name: "downloadFileName", desc: "自定义导出文件名(2022.09.26更新前端组件后才能使用)", type: "string", default: "" },
     { name: "boxModel", desc: "弹出新建、编辑框状态", type: "bool", default: "false" },
     { name: "currentAction", desc: "当前操作的状态:如：Add,Update", type: "string", default: "" },
     { name: "currentRow", desc: "当前编辑的行数据", type: "json", default: "" },
@@ -289,7 +343,7 @@ const param = {
     { name: "ck", desc: "<span  style='color:red'>是否显示checkbox(2020.11.01)</span>", type: "bool", default: "true" },
     { name: "columnIndex", desc: "是否显示index序号(2020.11.01)", type: "bool", default: "false" },
     { name: "textInline", desc: "<span style='color:red'>table内容超出后自动换行(2021.01.16)</span>", type: "bool", default: "true" },
-    { name: "(获取焦点)获取表单原生dom标签", desc: "this.$refs.form.字段名;使用场景:新建/编辑时设置input标签设置焦点：this.$refs.form.字段名.foucs", param: "" },
+    { name: "(获取焦点)获取表单原生dom标签", desc: "this.$refs.form.$refs.字段名<br>使用场景:新建/编辑时设置input标签设置焦点：this.$refs.form.$refs.字段名.foucs()<br>(2022.09.12更新volform.vue文件后才能使用)", param: "" },
     {
       name: "buttons", desc: `查询界面的所有按钮，[{<br />
           &nbsp; &nbsp; name: "刷 新",//按钮名称<br />
@@ -306,7 +360,7 @@ const param = {
     { name: "hasKeyField", desc: "所有有数据源的字段", type: "array", default: "[]" },
     { name: "load", desc: "页面打开后是否默认加载表格数据", type: "bool", default: "true" },
     { name: "activatedLoad", desc: "页面触发actived时是否刷新页面数据", type: "bool", default: "false" },
-    { name: "hasDetail", desc: "是否有明细(如果有明细表就为true)", type: "bool", default: "false" },
+    { name: "hasDetail", desc: "是否有明细表数据(可控制新建、编辑弹出框中的明细表是否显示2022.04.17更新viewgrid.vue才能使用)", type: "bool", default: "false" },
     //{ name: "summary", desc: "查询界面是否显示统计和求，设置为true需要实现后台SummaryExpress方法,可参照SellOrderService实现", type: "bool", default: "false" },
     {
       name: "detailOptions",
@@ -323,6 +377,7 @@ const param = {
                     key: "", <span style="color: #008000;">//</span><span style="color: #008000;">从表主键名</span>
                     data: [], <span style="color: #008000;">//</span><span style="color: #008000;">数据源</span>
                     columns: [], <span style="color: #008000;">//</span><span style="color: #008000;">从表列信息</span>
+                    textInline: <span style="color: #0000ff;">true</span>, <span style="color: #008000;">//</span><span style="color: #008000;">明细表行内容显示在一行上，如果需要换行显示，请设置为false2022.08.16</span>
                     edit: <span style="color: #0000ff;">true</span>, <span style="color: #008000;">//</span><span style="color: #008000;">明细是否可以编辑</span>
                     single:<span style="color: #0000ff;">false</span>,<span style="color: #008000;">//</span><span style="color: #008000;">明细表是否单选</span>
                     delKeys: [], <span style="color: #008000;">//</span><span style="color: #008000;">当编辑时删除当前明细的行主键值</span>
@@ -424,7 +479,10 @@ const param = {
     { name: "调用删除方法", desc: "this.del(row)//row要删除的行数据", param: "" },
     { name: "调用编辑方法", desc: "this.edit(row)//row要编辑的行数据", param: "" },
     { name: "获取从表明细选择中的行", desc: "获取从表明细选择中的行,使用：this.$refs.detail.getSelected()", param: "" },
+    { name: "强制刷新从表统计合计数据", desc: "this.$refs.detail.updateDetailTableSummaryTotal()", param: "" },
     { name: "获取table所有的行数据", desc: "this.$refs.table.rowData", param: "" },
+    { name: "获取/设置table正在编辑的行", desc: "this.$refs.table.edit.rowIndex //设置值可以指定某行处于编辑状态，值为-1时关闭编辑状态，", param: "" },
+    
     { name: "获取明细表table所有的行数据", desc: "this.$refs.detail.rowData", param: "" },
     {
       name: "刷新从表数据", desc: `<p> this.resetDetailTable()</p>
@@ -791,18 +849,57 @@ const param = {
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">this</span>.<span style="color:#9cdcfe;">tableHeight</span>&nbsp;=&nbsp;<span style="color:#b5cea8;">200</span>;;
       </div>
-      <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">this</span>.<span style="color:#9cdcfe;">$Notice</span>.<span style="color:#dcdcaa;">success</span>({&nbsp;<span style="color:#9cdcfe;">title</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'create方法执行时,你可以此处编写业务逻辑'</span>&nbsp;});
-      </div>
+  
+
+
+      
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;},
       </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#dcdcaa;">onInited</span>&nbsp;()&nbsp;{
       </div>
+
+      <p>
+      <br />
+    </p>
+    <div style="color:#D4D4D4;background-color:#1E1E1E;font-family:Consolas, &quot;font-size:14px;">
       <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#6a9955;">//&nbsp;&nbsp;&nbsp;this.$Notice.success({&nbsp;title:&nbsp;'create方法执行后',&nbsp;desc:&nbsp;'你可以SellOrder.js中编写业务逻辑,其他方法同样适用'&nbsp;});</span>
+        <div style="color:#D4D4D4;background-color:#1E1E1E;font-family:Consolas, &quot;font-size:14px;">
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#6a9955;">//明细表行编辑开始、结束方法(只能写在onInited中)</span>
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#6a9955;">//明细表点击表格时触发编辑方法</span>
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#569cd6;">this</span>.<span style="color:#9cdcfe;">detailOptions</span>.<span style="color:#dcdcaa;">beginEdit</span>= (<span style="color:#9cdcfe;">row</span>, <span style="color:#9cdcfe;">column</span>, <span style="color:#9cdcfe;">index</span>) <span style="color:#569cd6;">=&gt;</span> {
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#c586c0;">return</span> <span style="color:#569cd6;">true</span>;<span style="color:#6a9955;">//返回false不会进行编辑</span>
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#6a9955;">//明细表格行编辑结束方法</span>
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#569cd6;">this</span>.<span style="color:#9cdcfe;">detailOptions</span>.<span style="color:#dcdcaa;">endEditBefore</span>= (<span style="color:#9cdcfe;">row</span>, <span style="color:#9cdcfe;">column</span>, <span style="color:#9cdcfe;">index</span>) <span style="color:#569cd6;">=&gt;</span> {
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span style="color:#c586c0;">return</span> <span style="color:#569cd6;">true</span>;<span style="color:#6a9955;">//返回false不会进行编辑</span>
+          </div>
+          <div>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; }
+          </div>
+        </div>
       </div>
+    </div>
+    <p>
+      <br />
+    </p>
+
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;},
       </div>
@@ -822,7 +919,7 @@ const param = {
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'value'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'查询的值'</span>,
       </div>
       <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'displayType'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'like'</span><span style="color:#6a9955;">//设置为模糊查询,其他不需要设置</span>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'displayType'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'like'</span><span style="color:#6a9955;">//设置为模糊查询,其他类型见下面exportBefore方法displayType属性说明</span>
       </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}]
@@ -1333,7 +1430,7 @@ const param = {
         &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#dcdcaa;">onActivated</span>&nbsp;()&nbsp;{&nbsp;<span style="color:#6a9955;">//重新加载字典绑定的数据源(如果需要每次点击页面时刷新字典数据源，直接将整个方法添加到js的methods中即可使用)</span>
       </div>
       <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">this</span>.<span style="color:#dcdcaa;">initDicKeys</span>();
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">//this</span>.<span style="color:#dcdcaa;">initDicKeys</span>();
       </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;},
@@ -1341,8 +1438,11 @@ const param = {
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#dcdcaa;">exportBefore</span>&nbsp;(<span style="color:#9cdcfe;">param</span>)&nbsp;{&nbsp;<span style="color:#6a9955;">//添加自定义导出查询条件</span>
       </div>
+      <div style="padding:10px 0;">
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;this.downloadFileName='a.xlsx';//自定义导出的文件名(2022.09.12更新前端ViewGrid.vue才能使用)
+      </div>
       <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">let</span>&nbsp;<span style="color:#9cdcfe;">wheres</span>&nbsp;=&nbsp;[{
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;"> let</span>&nbsp;<span style="color:#9cdcfe;">wheres</span>&nbsp;=&nbsp;[{
       </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'name'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'字段名'</span>,
@@ -1351,7 +1451,8 @@ const param = {
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'value'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'查询的值'</span>,
       </div>
       <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'displayType'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'like'</span><span style="color:#6a9955;">//设置为模糊查询,其他不需要设置</span>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ce9178;">'displayType'</span><span style="color:#9cdcfe;">:</span>&nbsp;<span style="color:#ce9178;">'like'</span><span style="color:#6a9955;">
+        //可选类型text/like/selectList/thanorequal/lessorequal，like(模糊查询) ; selectList为多选,后台in查询，thanorequal>=,lessorequal<=</span>
       </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}]
@@ -1366,22 +1467,18 @@ const param = {
         &nbsp;&nbsp;&nbsp;&nbsp;},
       </div>
       <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#dcdcaa;">rowClick</span>&nbsp;({&nbsp;<span style="color:#9cdcfe;">row</span>,&nbsp;<span style="color:#9cdcfe;">column</span>,&nbsp;<span style="color:#9cdcfe;">event</span>&nbsp;})&nbsp;{&nbsp;<span style="color:#6a9955;">//查询界面点击行事件</span>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#dcdcaa;">rowClick</span>&nbsp;({&nbsp;<span style="color:#9cdcfe;">row</span>,&nbsp;<span style="color:#9cdcfe;">column</span>,&nbsp;<span style="color:#9cdcfe;">event</span>&nbsp;})&nbsp;{&nbsp;<span style="color:#6a9955;">//查询界面table点击行事件</span>
       </div>
+      <div>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">//this</span>.<span style="color:#9cdcfe;">$refs</span>.<span style="color:#9cdcfe;">table</span>.<span style="color:#9cdcfe;">$refs</span>.<span style="color:#9cdcfe;">table</span>.<span style="color:#dcdcaa;">clearSelection</span>(<span style="color:#9cdcfe;">row</span>)//清除当前选中当前行;
+    </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">this</span>.<span style="color:#9cdcfe;">$refs</span>.<span style="color:#9cdcfe;">table</span>.<span style="color:#9cdcfe;">$refs</span>.<span style="color:#9cdcfe;">table</span>.<span style="color:#dcdcaa;">toggleRowSelection</span>(<span style="color:#9cdcfe;">row</span>)//单击行时选中当前行;
       </div>
       <div>
         &nbsp;&nbsp;&nbsp;&nbsp;},
 
-        <div> 
-        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#dcdcaa;">rowDbClick</span>&nbsp;({&nbsp;<span style="color:#9cdcfe;">row</span>,&nbsp;<span style="color:#9cdcfe;">column</span>,&nbsp;<span style="color:#9cdcfe;">event</span>&nbsp;})&nbsp;{&nbsp;<span style="color:#6a9955;">//查询界面双击行事件</span>
-      </div>
-      <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#569cd6;">this</span>.<span style="color:#9cdcfe;">$refs</span>.<span style="color:#9cdcfe;">table</span>.<span style="color:#9cdcfe;">$refs</span>.<span style="color:#9cdcfe;">table</span>.<span style="color:#dcdcaa;">toggleRowSelection</span>(<span style="color:#9cdcfe;">row</span>)//双击行时选中当前行;
-      </div>
-      <div>
-        &nbsp;&nbsp;&nbsp;&nbsp;},
+      
 
         <div style="color:#D4D4D4;background-color:#1E1E1E;font-family:Consolas, &quot;font-size:14px;line-height:19px;white-space:pre;">
 	<div>

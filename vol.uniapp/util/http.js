@@ -1,4 +1,3 @@
-
 import store from '../store/index.js'
 
 var ipAddress;

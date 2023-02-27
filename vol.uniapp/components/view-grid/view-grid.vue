@@ -1,13 +1,25 @@
 <template>
 	<view class="view-grid">
+		<view class="fx-height"></view>
+		<view class="fx-header">
+			<view class="fx-header-total">
+				<text>共</text><text class="fx-header-row-total">{{rowTotal}}</text><text>条数据</text>
+			</view>
+			<view @click="griFabBtnClick(btn)" v-if="btn.hidden===false||btn.hidden===undefined" class="btn-item" v-for="(btn,index) in fabButtons" :key="index">
+				<u-icon :name="btn.icon" :size="btn.size||18"></u-icon>
+				<view>{{btn.name}}</view>
+			</view>
+		</view>
 		<slot name="gridHeader"></slot>
 		<!-- 	表格数据 -->
-		<vol-table :url="tableUrl" @rowClick="gridRowClick" :defaultLoadPage="load" @loadBefore="loadGridTableBefore"
-			:index="rowIndex" @loadAfter="loadGridTableAfter" ref="table" :direction="direction"
-			:titleField="titleField" :height="height" @formatter="cellFormatter" :columns.sync="columns"
-			:textInline="textInline">
-			<!-- 			<view style="height: 50rpx;"></view> -->
-			<!-- 		<view class="vol-table-title-buttons" slot="title">
+		<view class="view-grid-list">
+			<vol-table v-if="isCreated" :class="[className]" :url="tableUrl" @cellClick="gridCellClick"
+				@rowButtons="getRowButtons" @rowButtonClick="gridRowButtonClick" @rowClick="gridRowClick"
+				:defaultLoadPage="load" @loadBefore="loadGridTableBefore" :index="rowIndex"
+				@loadAfter="loadGridTableAfter" ref="table" :direction="direction" :titleField="titleField"
+				:height="height" @formatter="cellFormatter" :columns.sync="columns" :textInline="textInline">
+				<!-- 			<view style="height: 50rpx;"></view> -->
+				<!-- 		<view class="vol-table-title-buttons" slot="title">
 				<view @click.native.stop="gridRowClick()"  class="vol-table-title-buttons-del">
 					<u-icon size="20" color="#e64340" name="trash"></u-icon>
 				</view>
@@ -15,8 +27,9 @@
 					<u-icon size="20" name="edit-pen"></u-icon>
 				</view>
 			</view> -->
-		</vol-table>
-		<slot name="gridFooter"></slot>
+			</vol-table>
+			<slot name="gridFooter"></slot>
+		</view>
 		<!-- 		搜索 -->
 		<u-popup @touchmove.prevent :zIndex="999999" :show="searchModel" @close="searchModel=false">
 			<view style="background: #f7f7f7;" class="vol-action-sheet-select-container"
@@ -25,7 +38,7 @@
 					搜索
 					<view class="f-icon" @click="searchModel=false">取消</view>
 				</view>
-                <slot name="search"></slot>
+				<slot name="searchHeader"></slot>
 				<view class="vol-action-sheet-select-content">
 					<view class="search-item" @click="sortSelectModel=true">
 						<view class="f-form-label">排序字段</view>
@@ -92,12 +105,14 @@
 					{{buttons.length?(currentAction=='Add'?'新增':'编辑'):'基本信息'}}
 					<view class="f-icon" @click="model=false">取消</view>
 				</view>
-				 <slot name="edit"></slot>
+				<slot name="modelHeader"></slot>
 				<view class="vol-action-sheet-select-content">
-					<vol-form :load-key="false" @onChange="editGirdFormOnChange" ref="form"
-						:form-options.sync="editFormOptions" :formFields.sync="editFormFields">
+					<vol-form :labelWidth="labelWidth" :load-key="false" @onChange="editGirdFormOnChange" ref="form"
+						@extraClick="gridExtraClick" :form-options.sync="editFormOptions"
+						:formFields.sync="editFormFields">
 					</vol-form>
 				</view>
+				<slot name="modelBody"></slot>
 				<view class="btns" :class="{'l-btn':buttons.length>4}">
 					<view v-show="!btn.hidden" class="btn" v-for="(btn,index) in buttons" :key="index">
 						<u-button @click="btnClick(btn)" :customStyle="{'border-radius': '6px'}" :type="btn.type"
@@ -108,21 +123,21 @@
 							text="关 闭"></u-button>
 					</view>
 				</view>
-
+				<slot name="modelFooter"></slot>
 			</view>
 		</u-popup>
 		<!-- 	↑↓ 表格排序，查询最后面增加一个排序字段选择-->
-		<view class="fab-buttons">
+		<!-- 	<view class="fab-buttons">
 			<view class="icon-item" v-show="showFabButons" v-for="(btn,index) in fabButtons" :key="index"
 				style="background-color: #ffff;">
-				<!--这里小程序上有问题 	 -->
+			
 				<u-icon :color="btn.color" @click="griFabBtnClick(btn)" :name="btn.icon" size="20"></u-icon>
 			</view>
-			<!-- 		浮动控制按钮 -->
-			<view class="switch-btn" @click="showFabButons=!showFabButons">
+		
+			<view class="switch-btn" v-show="showButtons" @click="showFabButons=!showFabButons">
 				<u-icon color="#1890FF" name="list-dot" size="20"></u-icon>
 			</view>
-		</view>
+		</view> -->
 		<view class="grid-u-model">
 			<u-modal :show="showDel" cancelText="取消" :showCancelButton="true" :showConfirmButton="true"
 				@cancel="cancelDel" @confirm="confirmDel" title="警告">
@@ -133,7 +148,6 @@
 </template>
 
 <script>
-	let _$this;
 	export default {
 		name: "view-grid",
 		props: {
@@ -161,25 +175,29 @@
 		},
 		data() {
 			return {
+				rowTotal: 0,
+				isWx: false,
+				className: 'vol-table-888888',
 				rowIndex: false, //是否显示table的行号
 				load: true, //是否默认加载table表格数据
-				height: 0,
-				direction: "list", //"horizontal"//list
+				height: 0, //当前table/列表高度
+				direction: "list", //页面显示方向"horizontal"//list
 				titleField: "", //如果table表格属性direction是以list显示，可以指定第一个标题
 				fabButtons: [], //浮动按钮、查询、刷新、添加
 				currentAction: 'Add', //当前操作状态
 				currentRow: {}, //当前编辑的行
 				maxHeight: 0,
 				model: false, //新建编辑弹出框
-				showFabButons: false,
-				textInline: true, //超出是否
+				showFabButons: true,
+				showButtons: true, //是否显示浮动按钮
+				textInline: true, //超出是否换行显示
 				columns: this.options.columns,
 				editFormFields: JSON.parse(JSON.stringify(this.options.editFormFields)),
 				searchFormOptions: this.options.searchFormOptions,
 				searchFormFields: JSON.parse(JSON.stringify(this.options.searchFormFields)),
 				editFormOptions: this.options.editFormOptions,
 				permission: [],
-				buttons: [], //弹出框中的按钮
+				buttons: [], //新建编辑弹出框中的按钮
 				hasEditpermission: false, //是否有编辑、新建权限
 				searchModel: false, //搜索弹出框
 				sortField: '',
@@ -188,7 +206,9 @@
 				sortSelectModel: false, //排序弹出框
 				tableUrl: "", //table加载的url地址
 				tableAction: "", //指定表名的权限
-				showDel: false
+				showDel: false,
+				isCreated: false,
+				labelWidth: 80 //编辑弹出框表单标签的宽度
 			}
 		},
 		methods: {
@@ -198,21 +218,16 @@
 			onTableCreated() {
 				this.onInited();
 			},
-			cellFormatter(row, column,index, callback) {
-				if (_$this.formatter) {
-					return callback(_$this.formatter(row, column,index));
+			cellFormatter(row, column, index, callback) {
+				if (this.formatter) {
+					return callback(this.formatter(row, column, index));
 				}
 				return callback(row[column.field]);
 			},
 			gridRowClick(index, row, columns) {
 				this.currentRow = row;
 				this.currentAction = 'Update';
-				let delButton = this.buttons.find(x => {
-					return x.value == 'del'
-				});
-				if (delButton) {
-					delButton.hidden = false;
-				}
+				this.hiddenDelButton(false)
 				//this.editFormFields.Name=Math.random();
 				if (this.$refs.form) {
 					this.$refs.form.reset(row);
@@ -221,15 +236,33 @@
 				}
 
 				// Object.assign(this.editFormFields, row);
-				if (_$this.rowClick && !_$this.rowClick(index, row, columns)) {
+				if (this.rowClick && !this.rowClick(index, row, columns)) {
 					return;
 				};
-				this.model = true;
+				if (this.modelOpenBefore(row) && this.modelOpenAfter(row)) {
+					this.model = true;
+				}
+			},
+			gridCellClick(index, row, column) {
+				if (this.cellClick && !this.cellClick(index, row, column)) {
+					return;
+				};
+			},
+			hiddenDelButton(hidden) {
+				let delButton = this.buttons.find(x => {
+					return x.value == 'del'
+				});
+				if (delButton) {
+					delButton.hidden = hidden;
+				}
 			},
 			gridAdd() {
 				this.currentAction = 'Add';
+				this.hiddenDelButton(true);
 				this.resetEditForm();
-				this.model = true;
+				if (this.modelOpenBefore(null) && this.modelOpenAfter(null)) {
+					this.model = true;
+				}
 			},
 			resetEditForm(source) {
 				if (this.$refs.form) {
@@ -244,6 +277,12 @@
 				//console.log(btn.onClick)
 				btn.onClick.call(this)
 			},
+			modelOpenBefore(row) {
+				return true
+			},
+			modelOpenAfter(row) {
+				return true
+			},
 			showSearch() {
 				this.searchModel = true;
 			},
@@ -252,7 +291,7 @@
 					if (source && source.hasOwnProperty(key)) {
 						formFields[key] = source[key];
 					} else {
-						if (formFields[key] instanceof Array) {
+						if (Array.isArray(formFields[key])) {
 							formFields[key].splice(0);
 							if (formOptions.some(x => {
 									return x.field == key && x.range
@@ -275,7 +314,7 @@
 				//this.$refs.table.load(null,true);
 				this.refresh();
 			},
-			search(){
+			search() {
 				this.refresh();
 			},
 			refresh() { //刷新
@@ -358,8 +397,9 @@
 				}
 				callback(true)
 			},
-			loadGridTableAfter(rows, callback) { //查询后
-				if (this.searchAfter && !this.searchAfter(rows)) {
+			loadGridTableAfter(data, callback) { //查询后
+				this.rowTotal = data.total;
+				if (this.searchAfter && !this.searchAfter(data.rows, data)) {
 					return callback(false);
 				}
 				callback(true)
@@ -392,21 +432,12 @@
 				if (!this.$refs.form.validate()) {
 					return;
 				}
-				if (this.currentAction == 'Add') {
-					if (this.addBefore && !this.addBefore(this.editFormFields)) {
-						return;
-					}
-				} else {
-					if (this.updateBefore && !this.updateBefore(this.editFormFields)) {
-						return;
-					}
-				}
 				let editFormFields = {};
 				editFormFields[this.options.table.key] = this.currentRow[this.options.table.key]
 				//将数组转换成string
 				for (const key in this.editFormFields) {
 					let _val = this.editFormFields[key];
-					if (_val instanceof Array) {
+					if (Array.isArray(_val)) {
 						//上传的图片
 						if (this.editFormOptions.some(x => {
 								return x.field == key && x.type == 'img'
@@ -431,6 +462,15 @@
 					detailData: null,
 					delKeys: null
 				};
+				if (this.currentAction == 'Add') {
+					if (this.addBefore && !this.addBefore(formData)) {
+						return;
+					}
+				} else {
+					if (this.updateBefore && !this.updateBefore(formData)) {
+						return;
+					}
+				}
 				let url = 'api' + this.options.table.url + (this.currentAction);
 				this.http.post(url, formData, true).then(result => {
 					this.$toast(result.message);
@@ -453,7 +493,8 @@
 			},
 			initPermissionButtons() { //初始化按钮权限
 				let _permission = (this.permission.find(x => {
-					return (this.tableAction || this.options.table.name) == x.tableName
+					return (this.tableAction || this.options.table.name).toUpperCase() == x.tableName
+						.toUpperCase()
 				}) || {}).permission;
 				if (!_permission) {
 					return;
@@ -466,7 +507,7 @@
 						hidden: true,
 						type: 'error',
 						onClick: () => {
-							_$this.gridDel();
+							this.gridDel();
 						}
 					})
 				}
@@ -476,6 +517,7 @@
 						name: "重置",
 						icon: 'reload',
 						value: 'reset',
+						hidden: false,
 						type: 'success',
 						onClick: () => {
 							this.resetEditForm();
@@ -484,6 +526,7 @@
 						name: "提交",
 						icon: 'checkbox-mark',
 						value: 'add',
+						hidden: false,
 						type: 'primary',
 						onClick: () => {
 							this.gridSave();
@@ -499,23 +542,32 @@
 				}
 				//table界面浮动按钮
 				let fabButtons = [{
-					icon: "search",
-					value: "search",
-					color: 'rgb(7 185 14)',
-					onClick: () => {
-						this.showSearch();
-					}
-				}, {
 					icon: "reload", //刷新
 					value: "search",
+					name: "刷新",
+					size: '18',
+					hidden: false,
 					color: '#009688',
 					onClick: () => {
 						this.refresh();
 					}
+				}, {
+					icon: "search",
+					value: "search",
+					name: "查询",
+					hidden: false,
+					size: '20',
+					color: 'rgb(7 185 14)',
+					onClick: () => {
+						this.showSearch();
+					}
 				}]
 				if (_permission.indexOf("Add") != -1) {
-					fabButtons.push({
+					fabButtons.unshift({
 						icon: "plus", //添加
+						hidden: false,
+						name: "添加",
+						size: '17',
 						color: 'rgb(2, 171, 255)',
 						onClick: () => {
 							this.gridAdd();
@@ -524,14 +576,14 @@
 				}
 				this.fabButtons.push(...fabButtons);
 			},
-			initPermission() {
+			async initPermission() {
 				let permission = this.$store.getters.getMenu();
 				if (permission.length) {
 					this.permission = permission;
 					this.initPermissionButtons();
 					return;
 				}
-				this.http.get("api/menu/getTreeMenu", {}, false).then(result => {
+				await this.http.get("api/menu/getTreeMenu", {}, false).then(result => {
 					this.permission = result;
 					this.$store.commit("setPermission", result);
 					this.initPermissionButtons();
@@ -550,6 +602,9 @@
 					return x.key || x.dataKey
 				}))
 				keys.push(...this.editFormOptions.filter(x => {
+					if (x.type == 'img' || x.type == "file" || x.type == 'excel') {
+						x.url = "api/" + this.options.table.name + '/upload'
+					}
 					return x.key || x.dataKey && !x.data.length
 				}).map(x => {
 					return x.key || x.dataKey
@@ -588,26 +643,52 @@
 					}
 				})
 			},
+			initFormAttr() {
+				this.editFormOptions.forEach(x => {
+					if (!x.hasOwnProperty('readonly')) {
+						x.readonly = false;
+					}
+					if (!x.hasOwnProperty('required')) {
+						x.required = false;
+					}
+				})
+			},
 			griFabBtnClick(btn) { //浮动按钮点击事件
 				btn.onClick();
+			},
+			getRowButtons(index, row, callback) {
+				if (this.rowButtons) {
+					callback(this.rowButtons(index, row))
+					return;
+				}
+				return [];
+			},
+			gridRowButtonClick(btn, index, row) {
+				this.rowButtonClick && this.rowButtonClick(btn, index, row);
+			},
+			gridExtraClick(option, fields) {
+				this.extraClick && this.extraClick(option, fields);
 			}
 		},
-		created() {
-			_$this = this;
-			uni.getSystemInfo({
-				success: function(res) {
-					_$this.height = res.windowHeight - 10;
-				}
-			});
-			this.initPermission();
+		async created() {
+			await this.initPermission();
+			this.isCreated = true;
+			let _$this = this;
+			// uni.getSystemInfo({
+			// 	success: function(res) {
+			// 		_$this.height = res.windowHeight - 10;
+			// 	}
+			// });
 			this.titleField = (this.columns.find(x => {
 				return x.link
 			}) || {}).field;
 			this.tableUrl = 'api' + this.options.table.url + 'getPageData';
 
 
+
 			let extend;
 			// #ifdef MP-WEIXIN
+			this.isWx = true;
 			if (_$this.$parent.options.extend && typeof _$this.$parent.options.extend == 'function') {
 				extend = _$this.$parent.options.extend();
 				if (extend.methods) {
@@ -622,13 +703,39 @@
 				}
 			}
 			this.initSearchFormDateRange();
-			_$this.onInited();
-			this.initSource();
+			if (!this.isWx) {
+				this.onInited();
+				this.initSource();
+			}
 		},
 		mounted() {
+			if (this.isWx) {
+				this.onInited();
+				this.initSource();
+			}
+			if (!this.height || this.height < 0) {
+				uni.getSystemInfo({
+					success: (resu) => {
+						var view = uni.createSelectorQuery().in(this).select(".view-grid-list");
+						view.boundingClientRect().exec(res => {
+							let h = 0;
+							if (this.columns.some(x => {
+									return x.summary
+								})) {
+								h = 49
+							}
+							this.height = resu.windowHeight - res[0].top - h;
+							// - (this.direction ==
+							// 	'list' ?
+							// 	0 : 52)
+							console.log(this.height)
+						})
+					}
+				})
+			}
 			uni.getSystemInfo({
-				success: function(res) {
-					_$this.maxHeight = res.screenHeight * 0.82;
+				success: (res) => {
+					this.maxHeight = res.screenHeight * 0.82;
 				}
 			});
 		},
@@ -650,7 +757,49 @@
 	.view-grid {
 		height: 100%;
 		overflow: hidden;
+		background: #f9f9f9;
+
+		.fx-height {
+			height: 70rpx;
+
+		}
+
+
+
 		// background: #fbfbfb;
+		.fx-header {
+			padding: 0 20rpx;
+			box-sizing: border-box;
+			top: 0;
+			position: absolute;
+			display: flex;
+			width: 100%;
+			height: 70rpx;
+			z-index: 99;
+			background: #f7f7f7;
+			align-items: center;
+
+			.btn-item {
+				height: 100%;
+				align-items: center;
+				display: flex;
+				font-size: 28rpx;
+				margin-left: 18rpx;
+			}
+		}
+
+		.fx-header-total {
+			flex: 1;
+			font-size: 28rpx;
+			color: #555;
+			box-sizing: border-box;
+
+			.fx-header-row-total {
+				font-weight: bolder;
+				font-size: 30rpx;
+				margin: 0 6rpx;
+			}
+		}
 	}
 
 	.vol-action-sheet-select-container {

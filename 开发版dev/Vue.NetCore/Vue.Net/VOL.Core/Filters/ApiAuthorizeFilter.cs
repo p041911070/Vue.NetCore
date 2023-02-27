@@ -9,6 +9,7 @@ using System.Security.Claims;
 using VOL.Core.Configuration;
 using VOL.Core.Extensions;
 using VOL.Core.ManageUser;
+using static VOL.Core.Filters.ApiTaskAttribute;
 
 namespace VOL.Core.Filters
 {
@@ -31,8 +32,15 @@ namespace VOL.Core.Filters
             //if (context.Filters.Any(item => item is IAllowAnonymousFilter))
             if (context.ActionDescriptor.EndpointMetadata.Any(item => item is IAllowAnonymous))
             {
-                //如果使用了固定Token不过期，直接对token的合法性及token是否存在进行验证
                 if (context.Filters
+                    .Where(item => item is IApiTaskFilter)
+                    .FirstOrDefault() is IApiTaskFilter apiTaskFilter) 
+                {
+                    apiTaskFilter.OnAuthorization(context);
+                    return;
+                }
+                //如果使用了固定Token不过期，直接对token的合法性及token是否存在进行验证
+                else if (context.Filters
                     .Where(item => item is IFixedTokenFilter)
                     .FirstOrDefault() is IFixedTokenFilter tokenFilter)
                 {
@@ -50,19 +58,19 @@ namespace VOL.Core.Filters
             //限定一个帐号不能在多处登陆   UserContext.Current.Token != ((ClaimsIdentity)context.HttpContext.User.Identity)?.BootstrapContext?.ToString()
 
             // &&UserContext.Current.UserName!="admin666"为演示环境，实际使用时去掉此条件
-            if (!context.HttpContext.User.Identity.IsAuthenticated
-                || (
-                UserContext.Current.Token != ((ClaimsIdentity)context.HttpContext.User.Identity)
-                ?.BootstrapContext?.ToString()
-                && UserContext.Current.UserName != "admin666" 
-                ))
-            {
-                Console.Write($"IsAuthenticated:{context.HttpContext.User.Identity.IsAuthenticated}," +
-                    $"userToken{UserContext.Current.Token}" +
-                    $"BootstrapContext:{((ClaimsIdentity)context.HttpContext.User.Identity)?.BootstrapContext?.ToString()}");
-                context.Unauthorized("登陆已过期");
-                return;
-            }
+            //if (!context.HttpContext.User.Identity.IsAuthenticated
+            //    || (
+            //    UserContext.Current.Token != ((ClaimsIdentity)context.HttpContext.User.Identity)
+            //    ?.BootstrapContext?.ToString()
+            //    && UserContext.Current.UserName != "admin666" 
+            //    ))
+            //{
+            //    Console.Write($"IsAuthenticated:{context.HttpContext.User.Identity.IsAuthenticated}," +
+            //        $"userToken{UserContext.Current.Token}" +
+            //        $"BootstrapContext:{((ClaimsIdentity)context.HttpContext.User.Identity)?.BootstrapContext?.ToString()}");
+            //    context.Unauthorized("登陆已过期");
+            //    return;
+            //}
 
             DateTime expDate = context.HttpContext.User.Claims.Where(x => x.Type == JwtRegisteredClaimNames.Exp)
                 .Select(x => x.Value).FirstOrDefault().GetTimeSpmpToDate();

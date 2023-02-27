@@ -1,7 +1,7 @@
 <template>
   <div>
     <el-select
-      size="small"
+      style="width: 150px"
       v-if="['select', 'selectList'].indexOf(singleSearch.type) != -1"
       v-model="searchFormFields[singleSearch.field]"
       :filterable="
@@ -18,26 +18,39 @@
       >
       </el-option>
     </el-select>
-    <span
+    <div
+      class="date-range"
       v-else-if="['date', 'datetime'].indexOf(singleSearch.type) != -1"
-    ></span>
-    <!--<el-date-picker
-      clearable
-      style="width: 100%"
-      size="small"
-      v-else-if="['date', 'datetime'].indexOf(singleSearch.type) != -1"
-      v-model="formFields[singleSearch.field]"
-      :type="item.type"
-      :placeholder="singleSearch.title"
-      :disabledDate="(val) => getDateOptions(val, singleSearch.item)"
-      :value-format="getDateFormat(singleSearch.item)"
     >
-    </el-date-picker> -->
-
+      <el-date-picker
+        style="width: 210px"
+        :clearable="false"
+        unlink-panels
+        v-model="searchFormFields[singleSearch.field]"
+        type="daterange"
+        :value-format="getDateFormat(singleSearch)"
+        :placeholder="singleSearch.title"
+      >
+      </el-date-picker>
+      <i
+        class="el-icon-circle-close"
+        @click="dateRangeClear(singleSearch.field)"
+      ></i>
+    </div>
+    <el-cascader
+      style="width: 210px"
+      clearable
+      v-model="searchFormFields[singleSearch.field]"
+      v-else-if="singleSearch.type == 'cascader'"
+      :options="singleSearch.data"
+      :props="{ checkStrictly: true }"
+    >
+    </el-cascader>
     <el-input
       clearable
       v-else
-      size="small"
+      style="width: 150px"
+      size="default"
       v-model="searchFormFields[singleSearch.field]"
       :placeholder="singleSearch.title"
       @keypress="tiggerPress"
@@ -72,6 +85,10 @@ export default {
         (typeof date2 == "number" ? date2 : new Date(date2).valueOf())
       );
     },
+    getDateFormat(item) {
+      //见https://day.js.org/docs/zh-CN/display/format
+      return item.type == "date" ? "YYYY-MM-DD" : "YYYY-MM-DD HH:mm:ss";
+    },
     getDateOptions(date, item) {
       if ((!item.min && !item.max) || !date) {
         return false;
@@ -83,6 +100,9 @@ export default {
       return (
         this.compareDate(date, item.min) || !this.compareDate(date, item.max)
       );
+    },
+    dateRangeClear(field) {
+      this.searchFormFields[field]=[undefined,undefined];
     },
   },
   created() {
@@ -109,3 +129,24 @@ export default {
   },
 };
 </script>
+<style lang="less" scoped>
+.date-range{
+  position: relative;
+  > i{
+    display: none;
+    height: 27px;
+    line-height: 27px;
+    right: 1px;
+    top: 3px;
+    font-size: 13px;
+    color: #b4adad;
+    position: absolute;
+    padding: 0 6px 0 3px;
+    background: #ffff;
+    cursor: pointer;
+  }
+}
+.date-range:hover > i{
+  display: inline-block;
+}
+</style>

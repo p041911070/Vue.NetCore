@@ -69,6 +69,9 @@ export default {
       this.$refs.myform.reset(data);
       this.$message.error("表单已重置");
     },
+    popover(){
+      this.$message.success("点击了提示");
+    }
   },
   data() {
     return {
@@ -78,7 +81,7 @@ export default {
         Variety: "",
         AgeRange: "",
         DateRange: ["", ""],
-        City: [],
+        City: [], //注意多选这里默认是数组
         AvgPrice: 8.88, //input标签如果是数字，此处注意区分不要写成字符串了
         Date: "",
         IsTop: 0,
@@ -86,6 +89,8 @@ export default {
         Source: [],
         Source1: "5",
         Remark: "",
+        cascader: [], //注意级联这里默认是数组
+        monthValue: this.base.getDate().substr(0, 7), //'2022-10',
         phone: "",
         email: "",
         extra2: "",
@@ -95,10 +100,6 @@ export default {
             name: "exceltest.xlsx",
             path: "https://imgs-1256993465.cos.ap-chengdu.myqcloud.com/github/exceltest.xlsx",
           },
-          // {
-          //   name: "wordtest.docx",
-          //   path: "https://imgs-1256993465.cos.ap-chengdu.myqcloud.com/github/wordtest.docx",
-          // },
         ],
         img: [
           {
@@ -118,10 +119,31 @@ export default {
             required: true, //设置为必选项
             field: "AgeRange",
             type: "select",
+            extra: {
+              render: (h) => {
+                return (
+                  <el-popover
+                    placement="top-start"
+                    title="Title"
+                    width="200"
+                    trigger="hover"
+                    content="this is content, this is content, this is content"
+                  >
+                    {{
+                      reference: (
+                        <i onClick={() => {this.popover()}}
+                          class="el-icon-warning-outline"
+                        ></i>
+                      ),
+                    }}
+                  </el-popover>
+                );
+              },
+            },
           },
           {
             title: "自动完成",
-            autocomplete:true, //设置为自动完成
+            autocomplete: true, //设置为自动完成
             dataKey: "pz",
             placeholder: "不存的数据自动填充",
             //如果这里绑定了data数据，后台不会加载此数据源
@@ -139,11 +161,11 @@ export default {
             required: true,
             data: [],
             field: "City",
-            type: "selectList",//selectList属性为多选 
+            type: "selectList", //selectList属性为多选
           },
           {
             type: "decimal",
-            title: "价格",
+            title: "数字",
             required: true,
             placeholder: "你可以自己定义placeholder显示的文字",
             field: "AvgPrice",
@@ -229,7 +251,24 @@ export default {
             type: "switch",
           },
         ],
-
+        [
+          {
+            title: "年月",
+            field: "monthValue",
+            placeholder: "年月",
+            type: "month",
+          },
+          {
+            title: "级联",
+            field: "cascader", //注意上面formFields属性cascader是数组
+            placeholder: "配置数据源后自动绑定级联",
+            checkStrictly: true, //是否可以选择任意一级
+            type: "cascader",
+            data:[],
+            dataKey: "tree_roles", //配置数据源(见菜单下拉框绑定设置中的级联角色自定义sql)
+            colSize: 8, //设置宽度100%
+          },
+        ],
         [
           {
             title: "备注",
@@ -240,6 +279,32 @@ export default {
             max: 3,
             type: "textarea",
             colSize: 12, //设置宽度100%
+          },
+        ],
+        [
+          {
+            colSize: 12,
+            render: (h) => {
+              return h(
+                "div",
+                { style: { "padding-left": "48px", "margin-bottom": "-14px" } },
+                [
+                  h(
+                    "div",
+                    {
+                      style: {
+                        "border-left": "10px solid #3095ff",
+                        "line-height": "17px",
+                        "padding-left": "4px",
+                        "font-weight": "bold",
+                        "font-size": "15px",
+                      },
+                    },
+                    "其他基础信息(通过render方法数据分栏)"
+                  ),
+                ]
+              );
+            },
           },
         ],
         [
@@ -278,6 +343,7 @@ export default {
             title: "只读文本",
             field: "Address",
             type: "label",
+            inputStyle: { color: "red" }, //自定义样式,其他的input也生效
           },
           {
             title: "图片",

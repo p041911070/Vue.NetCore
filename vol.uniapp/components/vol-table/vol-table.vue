@@ -1,5 +1,5 @@
 <template>
-	<view>
+	<view class="vol-table" :class="className">
 		<!-- 		水平显示 -->
 		<view v-if="direction=='horizontal'">
 			<view class="vol-table-head">
@@ -20,7 +20,7 @@
 				<u-empty mode="list" v-if="!rowsData.length" text="无数据"
 					icon="http://cdn.uviewui.com/uview/empty/list.png"></u-empty>
 				<u-list :upperThreshold="-999" v-if="tableHeight" :height="tableHeight" @scrolltolower="scrolltolower">
-					<view @click="rowClick(rowindex,columns)" :key="rowindex" class="vol-table-body-rows"
+					<view @click="tableRowClick(rowindex,columns)" :key="rowindex" class="vol-table-body-rows"
 						v-for="(row,rowindex) in rowsData">
 						<view class="cell-index" v-if="index">
 							{{rowindex+1}}
@@ -28,15 +28,26 @@
 						<view :style="{width:column.width+'px',flex:column.width?'unset':1}"
 							:class="{'text-inline':textInline}" :key="cindex" class="vol-table-body-cell"
 							v-if="!column.hidden" v-for="(column,cindex) in columns">
-							<view class="vol-cell" v-if="column.formatter" v-html="rowFormatter(row,column,rowindex)">
+							<view class="vol-cell" @click.stop="cellClick(rowindex,row,column)" v-if="column.click">
+								<view :style="column.style" v-if="column.formatter">
+									<rich-text :nodes="rowFormatter(row,column,rowindex)+''"></rich-text>
+								</view>
+								<view :style="column.style" v-else>{{row[column.field]}}</view>
 							</view>
-							<view class="vol-cell" v-else-if="column.type=='img'">
+							<view class="vol-cell" v-else-if="column.formatter">
+								<rich-text :nodes="rowFormatter(row,column,rowindex)+''"></rich-text>
+							</view>
+							<view @click.stop="previewImage(row[column.field])" class="vol-cell"
+								v-else-if="column.type=='img'">
 								<u--image style="float:left;margin-left:5px;" width="40px" height="40px" radius="4px"
 									:src="src" v-for="(src,index) in getImgSrc(row[column.field])" :key="index">
 								</u--image>
 							</view>
 							<view class="vol-cell" v-else-if="column.bind">
 								{{rowFormatterValue(row,column)}}
+							</view>
+							<view v-else-if="column.type=='editor'">
+								<u-parse :content="row[column.field]"></u-parse>
 							</view>
 							<view class="vol-cell" v-else-if="column.type=='date'">
 								{{(row[column.field]||'').substr(0,10)}}
@@ -46,32 +57,63 @@
 					</view>
 					<slot></slot>
 				</u-list>
+				<!-- 	显示合计 -->
+				<view v-if="hasSummary" :key="rowindex" class="vol-table-body-rows vol-table-summary"
+					v-for="(row,rowindex) in summary">
+
+					<view class="cell-index" v-if="index">合计</view>
+					<view :style="{width:column.width+'px',flex:column.width?'unset':1}"
+						:class="{'text-inline':textInline}" :key="cindex" class="vol-table-body-cell"
+						v-if="!column.hidden" v-for="(column,cindex) in columns">
+
+						<view class="vol-cell"> {{base.isEmpty(row[column.field])?'':row[column.field]}}</view>
+					</view>
+
+
+				</view>
 			</view>
 		</view>
 		<!-- 		列表显示 -->
 		<view v-else class="vol-table-list">
+			<!-- 		{{JSON.stringify(columns)}} -->
 			<u-list :upperThreshold="-999" v-if="tableHeight" :height="tableHeight" @scrolltolower="scrolltolower">
 				<u-empty mode="list" v-if="!rowsData.length" text="无数据"
 					icon="http://cdn.uviewui.com/uview/empty/list.png">
 				</u-empty>
-				<view @click="rowClick(rowindex,columns)" :key="rowindex" v-for="(row,rowindex) in rowsData">
+				<view :key="rowindex" v-for="(row,rowindex) in rowsData">
 					<view v-if="titleField" class="vol-table-list-item-title">
-						<view class="vol-table-list-item-title-left">{{getListTitleValue(row)}}</view>
-						<slot :data="row" name="title"></slot>
+						<text class="vol-table-list-item-title-border"></text>
+						<view class="vol-table-list-item-title-left">
+							<rich-text :nodes="getListTitleValue(row,index)+''"></rich-text>
+						</view>
+						<!-- 	<slot :data="row" name="title"></slot> -->
 					</view>
-					<view class="vol-table-list-item">
+					<view @click="tableRowClick(rowindex,columns)" class="vol-table-list-item">
 						<view :key="cindex" class="vol-table-list-item-cell"
 							v-if="!column.hidden&&column.field!=titleField" v-for="(column,cindex) in columns">
-							<view class="cell-left"> {{column.title}}</view>
+							<view class="cell-left" :style="{width:(column.width||90)+'px'}"> {{column.title}}</view>
 							<view class="cell-right">
-								<view v-if="column.formatter" v-html="rowFormatter(row,column)"></view>
+								<view @click.stop="cellClick(rowindex,row,column)" v-if="column.click">
+									<view :style="column.style" v-if="column.formatter">
+										<rich-text :nodes="rowFormatter(row,column,rowindex)+''"></rich-text>
+									</view>
+									<view :style="column.style" v-else>{{row[column.field]}}</view>
+								</view>
+								<view v-else-if="column.formatter">
+									<rich-text :nodes="rowFormatter(row,column)+''"></rich-text>
+								</view>
+								<view v-else-if="column.type=='editor'">
+									<u-parse :content="row[column.field]"></u-parse>
+								</view>
 								<view v-else-if="column.bind">
 									{{rowFormatterValue(row,column)}}
 								</view>
-								<view v-else-if="column.type=='img'">
-									<u--image style="float: right;margin-left:10px;" width="50px" height="50px"
-										radius="4px" :src="src" v-for="(src,index) in getImgSrc(row[column.field])"
-										:key="index"></u--image>
+								<view @click.stop="previewImage(row[column.field])" v-else-if="column.type=='img'">
+									<view style="float: right;margin-left:10px;" width="50px" height="50px"
+										v-for="(src,index) in getImgSrc(row[column.field])">
+										<u--image width="50px" height="50px" radius="4px" :src="src" :key="index">
+										</u--image>
+									</view>
 								</view>
 								<view v-else-if="column.type=='date'">
 									{{(row[column.field]||'').substr(0,10)}}
@@ -80,16 +122,31 @@
 							</view>
 						</view>
 					</view>
+					<view class="extent-button-item" @click.stop>
+						<view :key="btnIndex" class="extent-button" v-for="(btn,btnIndex) in rowButtons(rowindex,row)">
+							<u-button :icon="btn.icon" :hairline="true" :shape="btn.shape" :disabled="btn.disabled"
+								:plain="btn.plain" :type="btn.type" style="height:60rpx;" size="small"
+								@click="rowBtnClick(btn,rowindex,row)" :text="btn.text">
+							</u-button>
+						</view>
+					</view>
 				</view>
 				<slot></slot>
 			</u-list>
 
 		</view>
+
+		<u-overlay :opacity="0" :show="showOverlay" @click="showOverlay = false">
+			<view class="loading-warp">
+				<u-loading-icon text="加载中..." textSize="16"></u-loading-icon>
+
+				<!-- 		<view class="loading-warp-msg" @tap.stop>正在加载</view> -->
+			</view>
+		</u-overlay>
 	</view>
 </template>
 
 <script>
-	let _this;
 	export default {
 		name: "vol-table",
 		props: {
@@ -108,6 +165,10 @@
 			height: {
 				type: Number,
 				default: 0
+			},
+			autoHeight: {
+				type: Boolean,
+				default: true
 			},
 			textInline: { //超出是否显示省略号
 				type: Boolean,
@@ -137,17 +198,23 @@
 				default: () => {
 					return []
 				}
-			}
+			},
+			rowClick: null
 		},
 		data() {
 			return {
+				showOverlay: false,
+				className: 'vol-table-' + (~~(Math.random() * 1000000)),
 				rowsData: [],
 				sort: '',
 				order: "",
 				tableHeight: 0,
 				inColumns: [],
 				page: 1,
-				loaded: false
+				loaded: false,
+				hasSummary: false,
+				lastHeight: 0,
+				summary: []
 			};
 		},
 		methods: {
@@ -164,7 +231,7 @@
 				}
 				let status = true;
 				if (reset) {
-					this.rowsData.splice(0);
+					//this.rowsData.splice(0);
 					this.page = 1;
 					this.loaded = false;
 				}
@@ -181,28 +248,60 @@
 
 				if (!status) return;
 				param.wheres = JSON.stringify(param.wheres);
-				this.http.post(this.url, param, true).then(data => {
-					this.$emit("loadAfter", data.rows, (result) => {
+				this.showOverlay = true;
+				this.http.post(this.url, param, false).then(data => {
+					this.showOverlay = false;
+					this.$emit("loadAfter", data, (result) => {
 						status = result;
 					});
 					if (!status) return;
 					if (!data.rows.length || data.rows.length < param.rows) {
 						this.loaded = true;
 					}
+					// for (var i = 0; i < 4; i++) {
+					// 	data.rows.push(...JSON.parse(JSON.stringify(data.rows)))
+					// }
+					//显示合计
+					if (data.summary) {
+						if (!this.summary.length) {
+							let summary = []
+							for (let key in data.summary) {
+								let obj = {};
+								obj[key] = data.summary[key];
+								summary.push(obj);
+							}
+							this.summary = summary;
+						} else {
+							this.summary.forEach(x => {
+								for (let key in data.summary) {
+									x[key] = data.summary[key];
+								}
+							})
+						}
+					}
+					console.log(this.summary)
+					if (reset) {
+						this.rowsData.splice(0);
+					}
 					this.rowsData.push(...data.rows);
 				})
 			},
-			rowClick(index, columns) {
-				_this.$emit('rowClick', index, this.rowsData[index], columns);
+			tableRowClick(index, columns) {
+				if (this.rowClick) {
+					this.rowClick(index, this.rowsData[index], columns);
+					return;
+				}
+				this.$emit('rowClick', index, this.rowsData[index], columns);
 			},
 			rowFormatter(row, column, index) {
 				let _val;
-				_this.$emit('formatter', row, column, index, (val) => {
+				this.$emit('formatter', row, column, index, (val) => {
 					_val = val;
 				})
 				return _val;
 			},
 			rowFormatterValueList(val, column) {
+
 				let valArr = val.split(",").filter((x) => {
 					return x !== "" && x !== undefined;
 				});
@@ -216,7 +315,11 @@
 				return valArr.join(",");
 			},
 			rowFormatterValue(row, column) {
+				if (this.base.isEmpty(row[column.field])) {
+					return '';
+				}
 				let _val = row[column.field] + '';
+
 				if (!column.bind.data.length) {
 					return _val;
 				}
@@ -231,10 +334,15 @@
 				}
 				return _val;
 			},
-			getListTitleValue(row) {
+			getListTitleValue(row, index) {
+
 				let column = this.inColumns.find(x => {
 					return x.field == this.titleField
 				});
+				if (column.formatter) {
+					return this.rowFormatter(row, column, index)
+				}
+
 				if (column.bind) {
 					return this.rowFormatterValue(row, column)
 				}
@@ -266,7 +374,13 @@
 				if (this.base.isEmpty(imgs)) {
 					return []
 				}
+				if (imgs.indexOf('base64,') != -1) {
+					return [imgs];
+				}
 				let _imgs = imgs.split(',').map(x => {
+					if (x.startsWith('http')) {
+						return x;
+					}
 					return this.http.ipAddress + x
 				});
 				return _imgs;
@@ -291,39 +405,102 @@
 					})
 
 				})
+			},
+			cellClick(rowIndex, row, column) {
+				this.$emit('cellClick', rowIndex, row, column)
+			},
+			rowButtons(index, row) {
+				let _buttons = [];
+				this.$emit('rowButtons', index, row, (buttons) => {
+					_buttons = buttons;
+				})
+				console.log(_buttons)
+				return (_buttons || []) //.reverse();
+			},
+			rowBtnClick(btn, rowindex, row) {
+				this.$emit('rowButtonClick', btn, rowindex, row);
+			},
+			previewImage(urls) {
+				uni.previewImage({
+					urls: this.getImgSrc(urls),
+					longPressActions: {}
+				});
+			},
+			initSummary() {
+				if (this.summary.length) {
+					this.hasSummary = true;
+					return;
+				}
+				this.summary = this.columns.filter(x => {
+					return x.summary
+				}).map(x => {
+					let obj = {};
+					obj[x.field] = 0;
+					return obj;
+				})
+				this.hasSummary = this.summary.length > 0
+			},
+			caclHeaderHeight() {
+				if (this.direction == 'list') {
+					return;
+				}
+				console.log('555')
+				var view = uni.createSelectorQuery().in(this).select(".vol-table-head");
+				view.boundingClientRect().exec(res => {
+					if (this.lastHeight > 0 && this.lastHeight == this.tableHeight) {
+						return;
+					}
+					this.tableHeight = this.tableHeight - (res[0] || {
+						height: 0
+					}).height;
+					this.lastHeight = this.tableHeight;
+				})
 			}
 		},
 		created() {
+			this.initSummary();
 			this.getData();
-			_this = this;
 			this.inColumns = this.columns;
 			if (this.loadKey) {
 				this.loadSource();
 			}
-			//判断有没有formatter属性，调用父组件的注册方法
-			//计算高度
 			this.tableHeight = this.height;
-			if (!this.tableHeight) {
-				let _this = this;
+
+		},
+		mounted() {
+			if (this.autoHeight && this.height <= 0) {
 				uni.getSystemInfo({
-					success: function(res) {
-						// #ifdef MP-WEIXIN
-						_this.tableHeight = res.windowHeight - 60;
-						return
-						// #endif
-
-						_this.tableHeight = res.windowHeight - 60;
-
+					success: (resu) => {
+						var view = uni.createSelectorQuery().in(this).select(".vol-table");
+						view.boundingClientRect().exec(res => {
+							this.tableHeight = resu.windowHeight - res[0].top;
+							if (this.hasSummary) {
+								this.tableHeight = this.tableHeight - 49;
+							}
+							this.caclHeaderHeight()
+						})
 					}
-				});
+				})
+			} else {
+				this.caclHeaderHeight()
 			}
 		},
-
 		watch: {
+			height(newVal) {
+				console.log(newVal)
+				if (newVal <= 0) {
+					return;
+				}
+				this.tableHeight = newVal;
+				this.caclHeaderHeight();
+			},
 			// #ifdef MP-WEIXIN
 			inColumns: {
 				handler(newValue, oldValue) {
-					this.$emit('update:columns', newValue)
+					if (newValue && newValue.length) {
+						this.$emit('update:columns', newValue)
+						this.initSummary();
+					}
 				},
 				immediate: true,
 				deep: true
@@ -350,6 +527,7 @@
 
 <style lang="less" scoped>
 	.vol-table-head {
+		padding: 0 8rpx;
 		display: flex;
 		background: #f3f3f3;
 
@@ -357,7 +535,7 @@
 		font-weight: bold;
 
 		.vol-table-head-cell {
-			padding: 30rpx 10rpx;
+			padding: 30rpx 6rpx;
 			flex: 1;
 			width: 0;
 			font-size: 26rpx;
@@ -372,17 +550,24 @@
 		}
 	}
 
+
+
 	.vol-table-body-rows {
 		display: flex;
+		padding: 0 8rpx;
 
 		.vol-table-body-cell {
 			word-break: break-all;
-			padding: 30rpx 6rpx;
+			padding: 0 6rpx;
 			text-align: center;
 			flex: 1;
 			width: 0;
 			font-size: 24rpx;
 			color: #484848;
+
+			.vol-cell {
+				padding: 30rpx 0rpx;
+			}
 		}
 
 		.text-inline {
@@ -392,6 +577,15 @@
 				white-space: nowrap;
 			}
 		}
+	}
+
+	.vol-table-summary {
+		bottom: 0;
+		width: 100%;
+		background: #f3f3f3 !important;
+		z-index: 999;
+		position: absolute;
+		font-weight: bold;
 	}
 
 	.vol-table-body-rows:nth-child(even) {
@@ -412,21 +606,33 @@
 <style scoped lang="less">
 	.vol-table-list {
 		padding: 14rpx 0;
-		background: #fcfcfc;
+		background: #f9f9f9;
 	}
 
 	.vol-table-list-item-title {
 		text-align: left;
 		margin: 18rpx 0 14rpx 22rpx;
 		font-size: 28rpx;
-		border-left: 16rpx solid #00aaff;
 		line-height: 30rpx;
 		padding-left: 10rpx;
 		display: flex;
+		justify-content: center;
+		align-items: center;
 
 		.vol-table-list-item-title-left {
 			flex: 1;
+			font-size: 28rpx;
+			// font-weight: bold;
 		}
+
+		.vol-table-list-item-title-border {
+			display: inline-block;
+			background: #00aaff;
+			padding: 18rpx 8rpx;
+			border-radius: 10rpx;
+			margin-right: 14rpx;
+		}
+
 	}
 
 	.vol-table-list-item {
@@ -434,7 +640,7 @@
 		background: #FFFFFF;
 		box-shadow: 1px 1px 14px rgb(245 245 245 / 32%);
 		border: 1px solid #f3f3f3;
-		border-radius: 8rpx;
+		border-radius: 10rpx;
 
 		.vol-table-list-item-cell {
 			display: flex;
@@ -453,6 +659,44 @@
 				width: 0;
 				text-align: right;
 			}
+		}
+	}
+
+	.extent-button-item {
+		display: flex;
+		justify-content: flex-end;
+		margin: 0rpx 16rpx;
+		padding: 10rpx;
+		top: -10rpx;
+		position: relative;
+		background: #ffff;
+	}
+
+	.extent-button {
+		padding: 10rpx 10rpx;
+		// display: inline-block;
+		// float: right;
+		// min-width: 20%;
+		// margin-right: 20rpx;
+		// margin-bottom: 20rpx;
+	}
+
+	.loading-warp {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+
+		.loading-warp-msg {
+			min-width: 120px;
+			height: 40px;
+			justify-content: center;
+			background-color: #414141;
+			align-items: center;
+			text-align: center;
+			line-height: 40px;
+			border-radius: 5px;
+			color: #fff;
 		}
 	}
 </style>

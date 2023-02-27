@@ -14,13 +14,24 @@ module.exports = {
     //查看CSS属于哪个css文件
     sourceMap: true
   },
+  configureWebpack: {
+    module: {
+      rules: [
+        {
+          test: /\.mjs$/,
+          include: /node_modules/,
+          type: "javascript/auto"
+        },
+      ]
+    }
+  },
   //https://cli.vuejs.org/zh/guide/html-and-static-assets.html#html
   chainWebpack: (config) => {
     // 移除 prefetch 插件
     config.plugins.delete('prefetch');
     //自下定义title
     config.plugin('html').tap((args) => {
-      args[0].title = 'vol3.0版本';
+      args[0].title = 'vol开发框架';
       return args;
     });
 
